@@ -24,7 +24,7 @@
       capturedGLBs.push(glb);
       lastCaptured = glb;
       updateFloatingPanel();
-      setLog(`🎉 Salvo: ${glb.filename} (${glb.sizeKB} KB)`);
+      setLog(`✅ Modelo pronto para download: ${glb.filename} (${glb.sizeKB} KB)`);
     }
   });
 
@@ -40,10 +40,24 @@
       </div>
       <div id="mdp-body">
         <div id="mdp-info">Modelos capturados: <strong id="mdp-count">0</strong></div>
-        <div id="mdp-active-name" style="font-size: 11px; color: #a1a1aa; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-          ${isDiscover ? "Abra qualquer modelo da comunidade" : "Abra qualquer modelo para capturar"}
+        <div id="mdp-active-name" style="font-size: 11px; color: #a1a1aa; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+          ${isDiscover ? "Abra qualquer modelo da comunidade" : "Abra qualquer modelo para carregar"}
         </div>
         
+        <!-- Botão Principal de Download Sob Demanda -->
+        <button id="mdp-btn-manual-download" class="mdp-btn btn-main-download disabled" disabled>
+          ⏳ Aguardando modelo na tela...
+        </button>
+
+        <label class="mdp-checkbox-label">
+          <input type="checkbox" id="mdp-auto-dl-toggle">
+          <span>Baixar automaticamente ao navegar</span>
+        </label>
+
+        <div style="border-top: 1px solid #27272a; margin: 8px 0 6px 0;"></div>
+        
+        <div style="font-size: 10px; color: #71717a; margin-bottom: 4px; font-weight: 600;">FERRAMENTAS PRO LOCAIS:</div>
+
         <div class="mdp-buttons">
           <button id="mdp-btn-upscale" class="mdp-btn btn-blue" title="Aumenta texturas para 4096x4096px">🎨 Upscale Texturas 4K</button>
           <button id="mdp-btn-games" class="mdp-btn btn-purple" title="Reduz para ~25k polígonos para Roblox, Unity e Godot">🎮 Otimizar p/ Jogos (Low-Poly)</button>
@@ -53,7 +67,7 @@
         </div>
         
         <div id="mdp-log" style="font-size: 11px; color: #a3e635; margin-top: 8px; line-height: 1.3;">
-          Aguardando modelo renderizar...
+          Pronto. Navegue à vontade.
         </div>
       </div>
     `;
@@ -101,11 +115,20 @@
         font-size: 12px;
         margin-bottom: 3px;
       }
+      .mdp-checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 10px;
+        color: #a1a1aa;
+        margin-top: 6px;
+        cursor: pointer;
+        user-select: none;
+      }
       .mdp-buttons {
         display: flex;
         flex-direction: column;
-        gap: 6px;
-        margin-top: 6px;
+        gap: 5px;
       }
       .mdp-btn {
         border: none;
@@ -119,6 +142,25 @@
         display: flex;
         align-items: center;
         gap: 6px;
+      }
+      .btn-main-download {
+        width: 100%;
+        background: #a3e635;
+        color: #000;
+        font-size: 12px;
+        font-weight: bold;
+        text-align: center;
+        justify-content: center;
+        padding: 9px 12px;
+        margin-bottom: 2px;
+      }
+      .btn-main-download:hover:not(.disabled) {
+        background: #bef264;
+      }
+      .btn-main-download.disabled {
+        background: #3f3f46;
+        color: #71717a;
+        cursor: not-allowed;
       }
       .btn-blue {
         background: #2563eb;
@@ -162,10 +204,29 @@
     document.head.appendChild(style);
     document.body.appendChild(panel);
 
-    // Endpoint helper
+    // Botão Manual de Download
+    const manualDlBtn = document.getElementById("mdp-btn-manual-download");
+    manualDlBtn.addEventListener("click", () => {
+      if (!lastCaptured) {
+        setLog("⚠️ Nenhum modelo pronto ainda. Abra um modelo primeiro.");
+        return;
+      }
+      setLog(`📥 Baixando ${lastCaptured.filename}...`);
+      window.postMessage({ type: "MESHY_TRIGGER_DOWNLOAD" }, "*");
+    });
+
+    // Checkbox de Auto-Download
+    const autoDlToggle = document.getElementById("mdp-auto-dl-toggle");
+    autoDlToggle.addEventListener("change", (e) => {
+      const active = e.target.checked;
+      window.postMessage({ type: "MESHY_SET_AUTODOWNLOAD", payload: active }, "*");
+      setLog(active ? "⚡ Download automático ATIVADO" : "🛑 Download apenas sob demanda no botão");
+    });
+
+    // Helper de chamadas para o servidor
     function callServer(endpoint, payload, startMsg) {
       if (!lastCaptured) {
-        setLog("⚠️ Capture um modelo primeiro (abra qualquer modelo na tela).");
+        setLog("⚠️ Abra ou selecione um modelo primeiro.");
         return;
       }
       setLog(startMsg);
@@ -221,9 +282,16 @@
   function updateFloatingPanel() {
     const countEl = document.getElementById("mdp-count");
     const nameEl = document.getElementById("mdp-active-name");
+    const dlBtn = document.getElementById("mdp-btn-manual-download");
+
     if (countEl) countEl.textContent = capturedGLBs.length;
     if (nameEl && lastCaptured) {
       nameEl.textContent = `Ativo: ${lastCaptured.filename}`;
+    }
+    if (dlBtn && lastCaptured) {
+      dlBtn.classList.remove("disabled");
+      dlBtn.disabled = false;
+      dlBtn.innerHTML = `⬇ Baixar Este Modelo (${lastCaptured.sizeKB} KB)`;
     }
   }
 

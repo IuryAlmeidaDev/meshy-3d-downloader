@@ -78,9 +78,26 @@
       payload: { filename, sizeKB: entry.sizeKB, src }
     }, "*");
 
-    // Auto-download imediato
-    downloadGLB(blob, filename);
+    // Só faz download automático se o usuário tiver ativado explicitamente
+    if (window.__meshyAutoDownload) {
+      downloadGLB(blob, filename);
+    }
   }
+
+  // Escuta comando do botão da interface para baixar sob demanda
+  window.addEventListener("message", (event) => {
+    if (!event.data) return;
+    if (event.data.type === "MESHY_TRIGGER_DOWNLOAD") {
+      const target = window.__meshyLastGLB;
+      if (target && target.blob) {
+        logToExtension("INFO", "📥 Disparando download manual solicitado pelo usuário: " + target.filename);
+        downloadGLB(target.blob, target.filename);
+      }
+    }
+    if (event.data.type === "MESHY_SET_AUTODOWNLOAD") {
+      window.__meshyAutoDownload = !!event.data.payload;
+    }
+  });
 
   // ─── 1. HOOK: Web Worker de Descriptografia ─────────────────────────
   const _OrigWorker = window.Worker;

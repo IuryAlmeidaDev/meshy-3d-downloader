@@ -2,6 +2,7 @@
 (function initMeshyContentScript() {
   const capturedGLBs = [];
   let lastCaptured = null;
+  const isDiscover = window.location.href.includes("/discover");
 
   function sendLog(level, message, data = null) {
     try {
@@ -34,20 +35,24 @@
     panel.id = "meshy-downloader-panel";
     panel.innerHTML = `
       <div id="mdp-header">
-        <span class="mdp-title">⚡ Meshy 3D Descriptografador</span>
-        <span id="mdp-status-badge" class="mdp-badge">Pronto</span>
+        <span class="mdp-title">⚡ Meshy 3D Studio PRO</span>
+        <span id="mdp-status-badge" class="mdp-badge">${isDiscover ? "Discover" : "Workspace"}</span>
       </div>
       <div id="mdp-body">
         <div id="mdp-info">Modelos capturados: <strong id="mdp-count">0</strong></div>
-        <div id="mdp-active-name" style="font-size: 11px; color: #a1a1aa; margin-bottom: 8px;">
-          Clique em qualquer modelo na galeria para capturar
+        <div id="mdp-active-name" style="font-size: 11px; color: #a1a1aa; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+          ${isDiscover ? "Abra qualquer modelo da comunidade" : "Abra qualquer modelo para capturar"}
         </div>
+        
         <div class="mdp-buttons">
-          <button id="mdp-btn-info" class="mdp-btn primary">✅ Captura Automática Ativa</button>
-          <button id="mdp-btn-upscale" class="mdp-btn action">🎨 Upscale Texturas para 4K</button>
-          <button id="mdp-btn-stl" class="mdp-btn secondary">🖨️ Converter para STL (3D Print)</button>
+          <button id="mdp-btn-upscale" class="mdp-btn btn-blue" title="Aumenta texturas para 4096x4096px">🎨 Upscale Texturas 4K</button>
+          <button id="mdp-btn-games" class="mdp-btn btn-purple" title="Reduz para ~25k polígonos para Roblox, Unity e Godot">🎮 Otimizar p/ Jogos (Low-Poly)</button>
+          <button id="mdp-btn-repair" class="mdp-btn btn-green" title="Fecha buracos e gera STL 100% Watertight">🖨️ Reparar p/ 3D Print (STL)</button>
+          <button id="mdp-btn-split" class="mdp-btn btn-orange" title="Separa o modelo em partes geométricas soltas">🧩 Dividir Peças (Split)</button>
+          <button id="mdp-btn-scan" class="mdp-btn btn-outline">🔍 Varrer Modelos Visíveis</button>
         </div>
-        <div id="mdp-log" style="font-size: 11px; color: #a3e635; margin-top: 8px;">
+        
+        <div id="mdp-log" style="font-size: 11px; color: #a3e635; margin-top: 8px; line-height: 1.3;">
           Aguardando modelo renderizar...
         </div>
       </div>
@@ -57,12 +62,12 @@
     style.textContent = `
       #meshy-downloader-panel {
         position: fixed;
-        bottom: 24px;
-        right: 24px;
-        width: 290px;
+        bottom: 20px;
+        right: 20px;
+        width: 300px;
         background: #18181b;
         border: 1px solid #27272a;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+        box-shadow: 0 12px 30px rgba(0,0,0,0.7);
         border-radius: 12px;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         color: #f4f4f5;
@@ -85,99 +90,141 @@
         font-size: 10px;
         background: #166534;
         color: #bbf7d0;
-        padding: 2px 6px;
+        padding: 2px 7px;
         border-radius: 999px;
+        font-weight: bold;
       }
       #mdp-body {
         padding: 12px 14px;
       }
       #mdp-info {
         font-size: 12px;
-        margin-bottom: 4px;
+        margin-bottom: 3px;
       }
       .mdp-buttons {
         display: flex;
         flex-direction: column;
         gap: 6px;
+        margin-top: 6px;
       }
       .mdp-btn {
         border: none;
-        padding: 8px 12px;
+        padding: 7px 10px;
         border-radius: 6px;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
-        text-align: center;
+        text-align: left;
         cursor: pointer;
-        transition: 0.2s;
+        transition: 0.15s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
       }
-      .mdp-btn.primary {
-        background: #a3e635;
-        color: #000;
-        cursor: default;
+      .btn-blue {
+        background: #2563eb;
+        color: #fff;
       }
-      .mdp-btn.action {
+      .btn-blue:hover {
         background: #3b82f6;
+      }
+      .btn-purple {
+        background: #7c3aed;
         color: #fff;
       }
-      .mdp-btn.action:hover {
-        background: #60a5fa;
+      .btn-purple:hover {
+        background: #8b5cf6;
       }
-      .mdp-btn.secondary {
-        background: #3f3f46;
+      .btn-green {
+        background: #15803d;
         color: #fff;
       }
-      .mdp-btn.secondary:hover {
-        background: #52525b;
+      .btn-green:hover {
+        background: #16a34a;
+      }
+      .btn-orange {
+        background: #ea580c;
+        color: #fff;
+      }
+      .btn-orange:hover {
+        background: #f97316;
+      }
+      .btn-outline {
+        background: transparent;
+        border: 1px solid #3f3f46;
+        color: #a1a1aa;
+      }
+      .btn-outline:hover {
+        background: #27272a;
+        color: #fff;
       }
     `;
 
     document.head.appendChild(style);
     document.body.appendChild(panel);
 
-    // Evento: Upscale 4K
-    document.getElementById("mdp-btn-upscale").addEventListener("click", () => {
+    // Endpoint helper
+    function callServer(endpoint, payload, startMsg) {
       if (!lastCaptured) {
-        setLog("⚠️ Capture um modelo primeiro.");
+        setLog("⚠️ Capture um modelo primeiro (abra qualquer modelo na tela).");
         return;
       }
-      setLog(`Iniciando Upscale 4K de ${lastCaptured.filename}...`);
-      fetch("http://localhost:9999/upscale_4k", {
+      setLog(startMsg);
+      fetch(`http://localhost:9999${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: lastCaptured.filename })
-      }).then(r => r.json()).then(res => {
-        if (res.status === "success") {
-          setLog("✨ Modelo 4K gerado na pasta Downloads!");
-        } else {
-          setLog("Aviso: " + (res.message || "Sem texturas ou erro."));
-        }
-      }).catch(e => setLog("Erro no servidor: " + e.message));
+        body: JSON.stringify({ filename: lastCaptured.filename, ...payload })
+      })
+        .then(r => r.json())
+        .then(res => {
+          if (res.status === "success") {
+            setLog(`✨ ${res.message || 'Operação concluída com sucesso!'}`);
+          } else {
+            setLog(`ℹ️ ${res.message || 'Aviso da operação.'}`);
+          }
+        })
+        .catch(e => setLog("Erro no servidor: " + e.message));
+    }
+
+    // 1. Upscale 4K
+    document.getElementById("mdp-btn-upscale").addEventListener("click", () => {
+      callServer("/upscale_4k", {}, `🎨 Aplicando Upscale 4K em ${lastCaptured?.filename || ''}...`);
     });
 
-    // Evento: Converter STL
-    document.getElementById("mdp-btn-stl").addEventListener("click", () => {
-      if (!lastCaptured) {
-        setLog("⚠️ Capture um modelo primeiro.");
-        return;
+    // 2. Otimizar para Jogos (Low-Poly)
+    document.getElementById("mdp-btn-games").addEventListener("click", () => {
+      callServer("/optimize_games", { target_faces: 25000 }, `🎮 Reduzindo para Low-Poly (25k faces)...`);
+    });
+
+    // 3. Reparar para Impressão 3D (STL)
+    document.getElementById("mdp-btn-repair").addEventListener("click", () => {
+      callServer("/repair_print", {}, `🖨️ Reparando geometria e gerando STL estanque...`);
+    });
+
+    // 4. Dividir Peças (Split)
+    document.getElementById("mdp-btn-split").addEventListener("click", () => {
+      callServer("/split_parts", {}, `🧩 Separando peças geométricas soltas...`);
+    });
+
+    // 5. Varrer Modelos Visíveis (Discover & Workspace)
+    document.getElementById("mdp-btn-scan").addEventListener("click", () => {
+      setLog("🔍 Varrendo recursos carregados...");
+      try {
+        const resources = performance.getEntriesByType("resource");
+        const models = resources.filter(r => r.name.includes("assets.meshy.ai") && !r.name.includes(".json"));
+        setLog(`Encontrados ${models.length} recursos de modelos na página.`);
+      } catch (e) {
+        setLog("Erro: " + e.message);
       }
-      setLog(`Convertendo ${lastCaptured.filename} para STL...`);
-      fetch("http://localhost:9999/convert_stl", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: lastCaptured.filename })
-      }).then(r => r.json()).then(res => {
-        if (res.status === "success") {
-          setLog("🖨️ Arquivo STL salvo na pasta Downloads!");
-        } else {
-          setLog("Erro ao converter: " + res.message);
-        }
-      }).catch(e => setLog("Erro no servidor: " + e.message));
     });
   }
 
   function updateFloatingPanel() {
     const countEl = document.getElementById("mdp-count");
+    const nameEl = document.getElementById("mdp-active-name");
     if (countEl) countEl.textContent = capturedGLBs.length;
+    if (nameEl && lastCaptured) {
+      nameEl.textContent = `Ativo: ${lastCaptured.filename}`;
+    }
   }
 
   function setLog(msg) {

@@ -39,9 +39,13 @@ meshy-3d-downloader/
 
 - [x] **Descriptografia em Tempo Real:** Captura o arquivo `.glb` diretamente do Web Worker no momento da renderização.
 - [x] **Download Automático e Confiável:** Dispara o download nativo com cabeçalho `glTF` 100% válido, compatível com Blender, Unreal, Unity, Godot e fatiadores 3D.
-- [x] **Painel Flutuante Integrado:** Widget escuro moderno no canto inferior direito do Meshy Workspace mostrando contador de modelos e status em tempo real.
-- [x] **Suporte a Modelos de Alta Densidade:** Validado com modelos de escultura de mais de 5,4 milhões de triângulos (128 MB).
+- [x] **🌐 Suporte Total à Galeria Discover:** Baixa modelos públicos da comunidade no Meshy Discover sem gastar créditos.
+- [x] **Painel Flutuante Integrado:** Widget escuro moderno no canto inferior direito do Meshy Workspace e Discover com 5 botões de ação em 1 clique.
+- [x] **Suporte a Modelos de Alta Densidade:** Validado com modelos de escultura de mais de 5,4 milhões de triângulos (128 MB e 188 MB).
 - [x] **🎨 Upscale de Texturas para 4K:** Processa texturas embutidas com reamostragem Lanczos e filtro *Unsharp Mask* para 4096x4096px.
+- [x] **🎮 Otimização Low-Poly para Jogos:** Redução inteligente via *Quadric Error Decimation* para ~25k faces (perfeito para Roblox, Unity e Godot).
+- [x] **🛠️ Reparador de Geometria 3D Print:** Fecha buracos, corrige normais invertidas e gera STL 100% estanque (*Watertight / Manifold*).
+- [x] **🧩 Divisão de Peças (Split Mesh):** Separa partes soltas do modelo em arquivos individuais.
 - [x] **🖨️ Conversor Automático para STL:** Gera arquivos `.STL` binários prontos para fatiadores (Cura, Bambu Studio, PrusaSlicer).
 - [x] **Ponte de Logs Local:** Servidor Python (`localhost:9999`) que espelha os eventos do navegador para o terminal em tempo real.
 
@@ -109,8 +113,14 @@ Criar uma suíte completa (Extensão Chrome Manifest V3 + Servidor Local em Pyth
    - O Chrome proíbe extensões com pastas iniciadas por `_` (como `__pycache__`).
    - Por isso o projeto está estritamente dividido em `extension/` (apenas manifest e scripts JS) e `server/` (scripts Python).
 5. **Servidor Local e Motor 3D (`server/`):**
-   - `logger_server.py`: roda na porta 9999, recebe logs da extensão e expõe endpoints para automação de tarefas.
-   - `meshy_processor.py`: utiliza `pygltflib`, `trimesh` e `Pillow` para inspecionar malhas (suporta modelos com mais de 5,4 milhões de triângulos), aplicar upscale de textura para 4K via Lanczos com Unsharp Mask e converter `.glb` para `.stl` binário.
+   - `logger_server.py`: roda na porta 9999, recebe logs da extensão e expõe endpoints de automação (`/upscale_4k`, `/optimize_games`, `/repair_print`, `/split_parts`, `/convert_stl`).
+   - `meshy_processor.py`: utiliza `pygltflib`, `trimesh`, `fast_simplification` e `Pillow` para:
+     - Inspecionar malhas (suporta modelos gigantes com mais de 5,4 milhões de triângulos / 188 MB).
+     - Aplicar upscale de textura para 4K via Lanczos com Unsharp Mask.
+     - Otimizar para jogos (redução Low-Poly via *Quadric Error Decimation* para Roblox, Unity e Godot).
+     - Reparar malhas para impressão 3D (tornar 100% estanque / Watertight e corrigir normais).
+     - Separar peças desconectadas (Mesh Split em arquivos separados).
+     - Converter `.glb` para `.stl` binário e `.obj`.
 
 Com base em todo esse contexto, continue a trabalhar comigo neste projeto, respeitando essa arquitetura e propondo melhorias técnicas diretas e funcionais.
 ```

@@ -16,7 +16,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_FILE = os.path.join(BASE_DIR, "extension.log")
 DOWNLOADS_DIR = os.path.join(os.path.expanduser("~"), "Downloads")
 
-# Importa o processador 3D local
+# Importa o motor de processamento 3D
 try:
     import meshy_processor
 except ImportError:
@@ -38,7 +38,7 @@ class LogHandler(http.server.BaseHTTPRequestHandler):
         self._send_cors_headers()
         self.send_header("Content-Type", "application/json")
         self.end_headers()
-        self.wfile.write(json.dumps({"status": "running", "port": PORT}).encode("utf-8"))
+        self.wfile.write(json.dumps({"status": "running", "port": PORT, "features": ["4k", "games", "stl", "repair", "split"]}).encode("utf-8"))
 
     def do_POST(self):
         content_length = int(self.headers.get("Content-Length", 0))
@@ -70,28 +70,54 @@ class LogHandler(http.server.BaseHTTPRequestHandler):
             pass
 
         res_data = {"status": "received"}
+        filename = payload.get("filename")
+        file_path = None
+        if filename:
+            cand = os.path.join(DOWNLOADS_DIR, filename)
+            if os.path.exists(cand):
+                file_path = cand
+            else:
+                # Procura por prefixo ou mais recente
+                for f in os.listdir(DOWNLOADS_DIR):
+                    if filename.lower() in f.lower() and f.endswith(".glb"):
+                        file_path = os.path.join(DOWNLOADS_DIR, f)
+                        break
 
-        # Endpoint: Upscale para 4K
+        # Rota: Upscale para 4K
         if self.path == "/upscale_4k":
-            filename = payload.get("filename")
-            file_path = os.path.join(DOWNLOADS_DIR, filename) if filename else None
-            if file_path and os.path.exists(file_path) and meshy_processor:
-                try:
-                    out = meshy_processor.upscale_textures_to_4k(file_path)
-                    res_data = {"status": "success", "output": out}
-                except Exception as e:
-                    res_data = {"status": "error", "message": str(e)}
+            if file_path and meshy_processor:
+                res_data = meshy_processor.upscale_textures_to_4k(file_path)
+            else:
+                res_data = {"status": "error", "message": "Arquivo nao encontrado na pasta Downloads."}
 
-        # Endpoint: Converter para STL
+        # Rota: Otimizar para Jogos (Low Poly)
+        elif self.path == "/optimize_games":
+            target_faces = int(payload.get("target_faces", 25000))
+            if file_path and meshy_processor:
+                res_data = meshy_processor.optimize_for_games(file_path, target_faces=target_faces)
+            else:
+                res_data = {"status": "error", "message": "Arquivo nao encontrado para otimizacao."}
+
+        # Rota: Reparar para Impressao 3D (Watertight STL)
+        elif self.path == "/repair_print":
+            if file_path and meshy_processor:
+                res_data = meshy_processor.repair_for_3d_print(file_path)
+            else:
+                res_data = {"status": "error", "message": "Arquivo nao encontrado para reparo."}
+
+        # Rota: Dividir Pecas Desconectadas (Split)
+        elif self.path == "/split_parts":
+            if file_path and meshy_processor:
+                res_data = meshy_processor.split_mesh_parts(file_path)
+            else:
+                res_data = {"status": "error", "message": "Arquivo nao encontrado para divisao."}
+
+        # Rota: Converter para STL Simples
         elif self.path == "/convert_stl":
-            filename = payload.get("filename")
-            file_path = os.path.join(DOWNLOADS_DIR, filename) if filename else None
-            if file_path and os.path.exists(file_path) and meshy_processor:
-                try:
-                    out = meshy_processor.convert_to_stl(file_path)
-                    res_data = {"status": "success", "output": out}
-                except Exception as e:
-                    res_data = {"status": "error", "message": str(e)}
+            if file_path and meshy_processor:
+                res_data = meshy_processor.convert_to_stl(file_path)
+            else:
+                res_data = {"status": "error", "message": "Arquivo nao encontrado para conversao."}
 
         self.send_response(200)
         self._send_cors_headers()
@@ -105,8 +131,8 @@ class LogHandler(http.server.BaseHTTPRequestHandler):
 if __name__ == "__main__":
     server = http.server.ThreadingHTTPServer(("0.0.0.0", PORT), LogHandler)
     print("==================================================", flush=True)
-    print(f"  [+] Servidor de Logs e Processador 4K Meshy Ativo!", flush=True)
-    print(f"  [+] Porta: http://localhost:{PORT}", flush=True)
+    print(f"  [+] Servidor 3D Suite Ativo! Porta: {PORT}", flush=True)
+    print("  [+] Funcionalidades: 4K, Low-Poly, STL, Repair, Split", flush=True)
     print("==================================================", flush=True)
     try:
         server.serve_forever()

@@ -1,0 +1,6 @@
+Pillow>=10.0.0
+pygltflib>=1.16.5
+trimesh>=5.1.1
+numpy>=1.21.0
+opencv-python
+scipy

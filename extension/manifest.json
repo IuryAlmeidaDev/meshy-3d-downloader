@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Meshy 3D Downloader & Logger",
+  "version": "1.0.0",
+  "description": "Intercepta e baixa modelos 3D (.glb/.fbx) do Meshy.ai com ponte de logs local.",
+  "permissions": [
+    "downloads",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.meshy.ai/*",
+    "https://*.meshy.ai/*",
+    "https://assets.meshy.ai/*",
+    "http://localhost:9999/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.meshy.ai/*"],
+      "js": ["page_inject.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://www.meshy.ai/*"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ]
+}

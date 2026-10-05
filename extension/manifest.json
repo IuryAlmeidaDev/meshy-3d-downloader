@@ -1,8 +1,21 @@
 {
   "manifest_version": 3,
-  "name": "Meshy 3D Downloader & Logger",
+  "name": "Meshy 3D Studio PRO",
   "version": "1.0.0",
-  "description": "Intercepta e baixa modelos 3D (.glb/.fbx) do Meshy.ai com ponte de logs local.",
+  "description": "3D Asset Studio & Model Downloader for Meshy.ai. Intercept, inspect and download GLB models with local optimization tools.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "Meshy 3D Studio PRO"
+  },
   "permissions": [
     "downloads",
     "storage"

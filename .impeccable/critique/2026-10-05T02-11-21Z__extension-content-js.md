@@ -10,6 +10,7 @@ target_fingerprint: "sha256:c2c2086e4889305ad8ded5e3e95e96502ee1125adc868576c7ce
 target_path: "C:\\Users\\iuryc\\meshy-3d-downloader\\extension\\content.js"
 timestamp: 2026-10-05T02-11-21Z
 slug: extension-content-js
+closed: true
 ---
 #### Design Health Score
 

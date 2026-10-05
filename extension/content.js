@@ -273,6 +273,31 @@
         overflow: hidden;
         transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, box-shadow 0.2s ease;
       }
+      #meshy-downloader-panel ::selection {
+        background: rgba(163, 230, 53, 0.35);
+        color: #bef264;
+      }
+      #meshy-downloader-panel button:focus-visible {
+        outline: 2px solid #a3e635;
+        outline-offset: 1px;
+      }
+      .mdp-pill, .mdp-progress-percent, .mdp-terminal, .mdp-history-meta {
+        font-variant-numeric: tabular-nums;
+      }
+      .mdp-history-list::-webkit-scrollbar {
+        width: 4px;
+      }
+      .mdp-history-list::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.25);
+        border-radius: 4px;
+      }
+      .mdp-history-list::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 4px;
+      }
+      .mdp-history-list::-webkit-scrollbar-thumb:hover {
+        background: #a3e635;
+      }
       #meshy-downloader-panel.minimized {
         width: 250px;
       }

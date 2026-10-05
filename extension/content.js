@@ -1,7 +1,8 @@
-// content.js - Interface flutuante e ponte de comunicação
+// content.js - Interface flutuante e ponte de comunicação (Bolder Studio Edition)
 (function initMeshyContentScript() {
   const capturedGLBs = [];
   let lastCaptured = null;
+  let isMinimized = false;
   const isDiscover = window.location.href.includes("/discover");
 
   function sendLog(level, message, data = null) {
@@ -24,9 +25,21 @@
       capturedGLBs.push(glb);
       lastCaptured = glb;
       updateFloatingPanel();
-      setLog(`✅ Modelo pronto para download: ${glb.filename} (${glb.sizeKB} KB)`);
+      setLog(`Modelo decodificado (${glb.sizeKB} KB): ${glb.filename}`);
     }
   });
+
+  // Ícones Vetoriais SVG Inline de Alta Precisão (Sem Emojis)
+  const icons = {
+    download: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+    upscale: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`,
+    games: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>`,
+    stl: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>`,
+    split: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>`,
+    scan: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+    minimize: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+    expand: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`
+  };
 
   function createFloatingUI() {
     if (document.getElementById("meshy-downloader-panel")) return;
@@ -34,40 +47,70 @@
     const panel = document.createElement("div");
     panel.id = "meshy-downloader-panel";
     panel.innerHTML = `
+      <!-- Header HUD -->
       <div id="mdp-header">
-        <span class="mdp-title">⚡ Meshy 3D Studio PRO</span>
-        <span id="mdp-status-badge" class="mdp-badge">${isDiscover ? "Discover" : "Workspace"}</span>
-      </div>
-      <div id="mdp-body">
-        <div id="mdp-info">Modelos capturados: <strong id="mdp-count">0</strong></div>
-        <div id="mdp-active-name" style="font-size: 11px; color: #a1a1aa; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-          ${isDiscover ? "Abra qualquer modelo da comunidade" : "Abra qualquer modelo para carregar"}
+        <div class="mdp-header-left">
+          <span class="mdp-pulse-dot"></span>
+          <span class="mdp-title">MESHY STUDIO</span>
+          <span class="mdp-badge">${isDiscover ? "DISCOVER" : "WORKSPACE"}</span>
         </div>
-        
-        <!-- Botão Principal de Download Sob Demanda -->
-        <button id="mdp-btn-manual-download" class="mdp-btn btn-main-download disabled" disabled>
-          ⏳ Aguardando modelo na tela...
+        <button id="mdp-btn-toggle" class="mdp-icon-btn" title="Minimizar / Expandir">${icons.minimize}</button>
+      </div>
+
+      <!-- Corpo Principal -->
+      <div id="mdp-body">
+        <!-- Telemetria do Modelo Ativo -->
+        <div class="mdp-telemetry-box">
+          <div class="mdp-telemetry-row">
+            <span class="mdp-telemetry-label">ASSET ATIVO</span>
+            <span id="mdp-count-pill" class="mdp-pill">0 CAPTURADOS</span>
+          </div>
+          <div id="mdp-active-name" class="mdp-asset-name">
+            ${isDiscover ? "Selecione um modelo no feed público" : "Abra ou gere um modelo para decodificar"}
+          </div>
+        </div>
+
+        <!-- Ação Âncora Principal (Download) -->
+        <button id="mdp-btn-manual-download" class="mdp-main-action disabled" disabled>
+          <span class="mdp-btn-icon">${icons.download}</span>
+          <span id="mdp-main-action-text">AGUARDANDO MODELO NA TELA</span>
         </button>
 
-        <label class="mdp-checkbox-label">
-          <input type="checkbox" id="mdp-auto-dl-toggle">
-          <span>Baixar automaticamente ao navegar</span>
+        <!-- Toggle de Automação -->
+        <label class="mdp-switch-row">
+          <input type="checkbox" id="mdp-auto-dl-toggle" class="mdp-checkbox">
+          <span class="mdp-switch-text">Auto-download ao navegar</span>
         </label>
 
-        <div style="border-top: 1px solid #27272a; margin: 8px 0 6px 0;"></div>
-        
-        <div style="font-size: 10px; color: #71717a; margin-bottom: 4px; font-weight: 600;">FERRAMENTAS PRO LOCAIS:</div>
-
-        <div class="mdp-buttons">
-          <button id="mdp-btn-upscale" class="mdp-btn btn-blue" title="Aumenta texturas para 4096x4096px">🎨 Upscale Texturas 4K</button>
-          <button id="mdp-btn-games" class="mdp-btn btn-purple" title="Reduz para ~25k polígonos para Roblox, Unity e Godot">🎮 Otimizar p/ Jogos (Low-Poly)</button>
-          <button id="mdp-btn-repair" class="mdp-btn btn-green" title="Fecha buracos e gera STL 100% Watertight">🖨️ Reparar p/ 3D Print (STL)</button>
-          <button id="mdp-btn-split" class="mdp-btn btn-orange" title="Separa o modelo em partes geométricas soltas">🧩 Dividir Peças (Split)</button>
-          <button id="mdp-btn-scan" class="mdp-btn btn-outline">🔍 Varrer Modelos Visíveis</button>
+        <!-- Divisor Tático -->
+        <div class="mdp-divider">
+          <span>PROCESSAMENTO LOCAL</span>
         </div>
-        
-        <div id="mdp-log" style="font-size: 11px; color: #a3e635; margin-top: 8px; line-height: 1.3;">
-          Pronto. Navegue à vontade.
+
+        <!-- Grid de Ferramentas Studio -->
+        <div class="mdp-tools-grid">
+          <button id="mdp-btn-upscale" class="mdp-tool-btn" title="Super-resolução Lanczos para 4096x4096px">
+            <span class="mdp-tool-icon">${icons.upscale}</span>
+            <span class="mdp-tool-label">Upscale 4K</span>
+          </button>
+          <button id="mdp-btn-games" class="mdp-tool-btn" title="Otimização Quadric Decimation para ~25k faces (Roblox/Unity)">
+            <span class="mdp-tool-icon">${icons.games}</span>
+            <span class="mdp-tool-label">Low-Poly LOD</span>
+          </button>
+          <button id="mdp-btn-repair" class="mdp-tool-btn" title="Reparo de malha estanque (Watertight STL)">
+            <span class="mdp-tool-icon">${icons.stl}</span>
+            <span class="mdp-tool-label">STL 3D Print</span>
+          </button>
+          <button id="mdp-btn-split" class="mdp-tool-btn" title="Separação de ilhas geométricas isoladas">
+            <span class="mdp-tool-icon">${icons.split}</span>
+            <span class="mdp-tool-label">Split Mesh</span>
+          </button>
+        </div>
+
+        <!-- Terminal de Status em Tempo Real -->
+        <div class="mdp-terminal">
+          <span class="mdp-terminal-prompt">&gt;</span>
+          <span id="mdp-log" class="mdp-terminal-text">Pronto. Sistema em espera.</span>
         </div>
       </div>
     `;
@@ -76,142 +119,269 @@
     style.textContent = `
       #meshy-downloader-panel {
         position: fixed;
-        bottom: 20px;
-        right: 20px;
-        width: 300px;
-        background: #18181b;
-        border: 1px solid #27272a;
-        box-shadow: 0 12px 30px rgba(0,0,0,0.7);
-        border-radius: 12px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        bottom: 22px;
+        right: 22px;
+        width: 310px;
+        background: rgba(13, 14, 18, 0.94);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(0, 0, 0, 0.5);
+        border-radius: 14px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
         color: #f4f4f5;
         z-index: 999999;
         overflow: hidden;
+        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+      }
+      #meshy-downloader-panel.minimized #mdp-body {
+        display: none;
       }
       #mdp-header {
-        background: #27272a;
-        padding: 10px 14px;
+        background: rgba(22, 23, 29, 0.9);
+        padding: 11px 14px;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        font-weight: 600;
-        font-size: 13px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        user-select: none;
       }
-      .mdp-title {
-        color: #d9f99d;
-      }
-      .mdp-badge {
-        font-size: 10px;
-        background: #166534;
-        color: #bbf7d0;
-        padding: 2px 7px;
-        border-radius: 999px;
-        font-weight: bold;
-      }
-      #mdp-body {
-        padding: 12px 14px;
-      }
-      #mdp-info {
-        font-size: 12px;
-        margin-bottom: 3px;
-      }
-      .mdp-checkbox-label {
+      .mdp-header-left {
         display: flex;
         align-items: center;
-        gap: 6px;
-        font-size: 10px;
-        color: #a1a1aa;
-        margin-top: 6px;
+        gap: 8px;
+      }
+      .mdp-pulse-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #a3e635;
+        box-shadow: 0 0 10px #a3e635;
+        animation: mdp-pulse 2s infinite ease-in-out;
+      }
+      @keyframes mdp-pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.35; transform: scale(0.85); }
+      }
+      .mdp-title {
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: #fff;
+      }
+      .mdp-badge {
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        background: rgba(163, 230, 53, 0.15);
+        color: #bef264;
+        border: 1px solid rgba(163, 230, 53, 0.3);
+        padding: 1px 6px;
+        border-radius: 4px;
+      }
+      .mdp-icon-btn {
+        background: transparent;
+        border: none;
+        color: #71717a;
+        cursor: pointer;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        transition: color 0.15s, background 0.15s;
+      }
+      .mdp-icon-btn:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.08);
+      }
+      #mdp-body {
+        padding: 14px;
+      }
+      .mdp-telemetry-box {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 8px;
+        padding: 8px 10px;
+        margin-bottom: 10px;
+      }
+      .mdp-telemetry-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+      }
+      .mdp-telemetry-label {
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: #71717a;
+      }
+      .mdp-pill {
+        font-size: 9px;
+        font-weight: 700;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: #a3e635;
+      }
+      .mdp-asset-name {
+        font-size: 11px;
+        font-weight: 500;
+        color: #d4d4d8;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .mdp-main-action {
+        width: 100%;
+        background: #a3e635;
+        color: #09090b;
+        border: none;
+        border-radius: 8px;
+        padding: 11px 14px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        cursor: pointer;
+        transition: background 0.15s, transform 0.1s;
+        box-shadow: 0 4px 14px rgba(163, 230, 53, 0.25);
+      }
+      .mdp-main-action:hover:not(.disabled) {
+        background: #bef264;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(163, 230, 53, 0.35);
+      }
+      .mdp-main-action:active:not(.disabled) {
+        transform: translateY(0);
+      }
+      .mdp-main-action.disabled {
+        background: #27272a;
+        color: #71717a;
+        box-shadow: none;
+        cursor: not-allowed;
+      }
+      .mdp-switch-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
         cursor: pointer;
         user-select: none;
       }
-      .mdp-buttons {
-        display: flex;
-        flex-direction: column;
-        gap: 5px;
+      .mdp-checkbox {
+        accent-color: #a3e635;
+        cursor: pointer;
+        width: 13px;
+        height: 13px;
       }
-      .mdp-btn {
-        border: none;
-        padding: 7px 10px;
-        border-radius: 6px;
+      .mdp-switch-text {
+        font-size: 10px;
+        color: #a1a1aa;
+        font-weight: 500;
+      }
+      .mdp-divider {
+        display: flex;
+        align-items: center;
+        margin: 12px 0 8px 0;
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: #52525b;
+      }
+      .mdp-divider::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: rgba(255, 255, 255, 0.06);
+        margin-left: 8px;
+      }
+      .mdp-tools-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+      }
+      .mdp-tool-btn {
+        background: rgba(255, 255, 255, 0.035);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 7px;
+        padding: 8px 10px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        color: #e4e4e7;
         font-size: 11px;
         font-weight: 600;
-        text-align: left;
         cursor: pointer;
-        transition: 0.15s;
+        transition: background 0.15s, border-color 0.15s, color 0.15s;
+        text-align: left;
+      }
+      .mdp-tool-btn:hover {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.2);
+        color: #fff;
+      }
+      .mdp-tool-btn:active {
+        transform: scale(0.98);
+      }
+      .mdp-tool-icon {
+        color: #a1a1aa;
+        display: flex;
+        align-items: center;
+      }
+      .mdp-tool-btn:hover .mdp-tool-icon {
+        color: #a3e635;
+      }
+      .mdp-tool-label {
+        font-size: 10px;
+        white-space: nowrap;
+      }
+      .mdp-terminal {
+        margin-top: 10px;
+        background: rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 6px;
+        padding: 6px 9px;
         display: flex;
         align-items: center;
         gap: 6px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 10px;
       }
-      .btn-main-download {
-        width: 100%;
-        background: #a3e635;
-        color: #000;
-        font-size: 12px;
+      .mdp-terminal-prompt {
+        color: #a3e635;
         font-weight: bold;
-        text-align: center;
-        justify-content: center;
-        padding: 9px 12px;
-        margin-bottom: 2px;
       }
-      .btn-main-download:hover:not(.disabled) {
-        background: #bef264;
-      }
-      .btn-main-download.disabled {
-        background: #3f3f46;
-        color: #71717a;
-        cursor: not-allowed;
-      }
-      .btn-blue {
-        background: #2563eb;
-        color: #fff;
-      }
-      .btn-blue:hover {
-        background: #3b82f6;
-      }
-      .btn-purple {
-        background: #7c3aed;
-        color: #fff;
-      }
-      .btn-purple:hover {
-        background: #8b5cf6;
-      }
-      .btn-green {
-        background: #15803d;
-        color: #fff;
-      }
-      .btn-green:hover {
-        background: #16a34a;
-      }
-      .btn-orange {
-        background: #ea580c;
-        color: #fff;
-      }
-      .btn-orange:hover {
-        background: #f97316;
-      }
-      .btn-outline {
-        background: transparent;
-        border: 1px solid #3f3f46;
-        color: #a1a1aa;
-      }
-      .btn-outline:hover {
-        background: #27272a;
-        color: #fff;
+      .mdp-terminal-text {
+        color: #d4d4d8;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
     `;
 
     document.head.appendChild(style);
     document.body.appendChild(panel);
 
-    // Botão Manual de Download
+    // Toggle Minimizar / Expandir
+    const toggleBtn = document.getElementById("mdp-btn-toggle");
+    toggleBtn.addEventListener("click", () => {
+      isMinimized = !isMinimized;
+      panel.classList.toggle("minimized", isMinimized);
+      toggleBtn.innerHTML = isMinimized ? icons.expand : icons.minimize;
+      toggleBtn.title = isMinimized ? "Expandir" : "Minimizar";
+    });
+
+    // Ação Principal: Download Manual sob demanda
     const manualDlBtn = document.getElementById("mdp-btn-manual-download");
     manualDlBtn.addEventListener("click", () => {
       if (!lastCaptured) {
-        setLog("⚠️ Nenhum modelo pronto ainda. Abra um modelo primeiro.");
+        setLog("Abra um modelo no visualizador 3D primeiro.");
         return;
       }
-      setLog(`📥 Baixando ${lastCaptured.filename}...`);
+      setLog(`Iniciando download: ${lastCaptured.filename}...`);
       window.postMessage({ type: "MESHY_TRIGGER_DOWNLOAD" }, "*");
     });
 
@@ -220,13 +390,13 @@
     autoDlToggle.addEventListener("change", (e) => {
       const active = e.target.checked;
       window.postMessage({ type: "MESHY_SET_AUTODOWNLOAD", payload: active }, "*");
-      setLog(active ? "⚡ Download automático ATIVADO" : "🛑 Download apenas sob demanda no botão");
+      setLog(active ? "Auto-download ativo ao abrir modelos." : "Modo manual ativo (baixe via botão).");
     });
 
-    // Helper de chamadas para o servidor
+    // Helper de chamadas seguras para o servidor local
     function callServer(endpoint, payload, startMsg) {
       if (!lastCaptured) {
-        setLog("⚠️ Abra ou selecione um modelo primeiro.");
+        setLog("Selecione um modelo no visualizador primeiro.");
         return;
       }
       setLog(startMsg);
@@ -238,60 +408,50 @@
         .then(r => r.json())
         .then(res => {
           if (res.status === "success") {
-            setLog(`✨ ${res.message || 'Operação concluída com sucesso!'}`);
+            setLog(res.message || "Operação concluída com sucesso!");
           } else {
-            setLog(`ℹ️ ${res.message || 'Aviso da operação.'}`);
+            setLog(res.message || "Aviso da operação.");
           }
         })
-        .catch(e => setLog("Erro no servidor: " + e.message));
+        .catch(e => setLog("Erro no servidor local: " + e.message));
     }
 
-    // 1. Upscale 4K
+    // Ferramentas Studio (Bolder pass)
     document.getElementById("mdp-btn-upscale").addEventListener("click", () => {
-      callServer("/upscale_4k", {}, `🎨 Aplicando Upscale 4K em ${lastCaptured?.filename || ''}...`);
+      callServer("/upscale_4k", {}, "Processando Upscale 4K de texturas...");
     });
 
-    // 2. Otimizar para Jogos (Low-Poly)
     document.getElementById("mdp-btn-games").addEventListener("click", () => {
-      callServer("/optimize_games", { target_faces: 25000 }, `🎮 Reduzindo para Low-Poly (25k faces)...`);
+      callServer("/optimize_games", { target_faces: 25000 }, "Calculando decimação Low-Poly (25k faces)...");
     });
 
-    // 3. Reparar para Impressão 3D (STL)
     document.getElementById("mdp-btn-repair").addEventListener("click", () => {
-      callServer("/repair_print", {}, `🖨️ Reparando geometria e gerando STL estanque...`);
+      callServer("/repair_print", {}, "Reparando malha e gerando STL estanque...");
     });
 
-    // 4. Dividir Peças (Split)
     document.getElementById("mdp-btn-split").addEventListener("click", () => {
-      callServer("/split_parts", {}, `🧩 Separando peças geométricas soltas...`);
-    });
-
-    // 5. Varrer Modelos Visíveis (Discover & Workspace)
-    document.getElementById("mdp-btn-scan").addEventListener("click", () => {
-      setLog("🔍 Varrendo recursos carregados...");
-      try {
-        const resources = performance.getEntriesByType("resource");
-        const models = resources.filter(r => r.name.includes("assets.meshy.ai") && !r.name.includes(".json"));
-        setLog(`Encontrados ${models.length} recursos de modelos na página.`);
-      } catch (e) {
-        setLog("Erro: " + e.message);
-      }
+      callServer("/split_parts", {}, "Analisando ilhas de malha desconectadas...");
     });
   }
 
   function updateFloatingPanel() {
-    const countEl = document.getElementById("mdp-count");
+    const countPill = document.getElementById("mdp-count-pill");
     const nameEl = document.getElementById("mdp-active-name");
     const dlBtn = document.getElementById("mdp-btn-manual-download");
+    const dlText = document.getElementById("mdp-main-action-text");
 
-    if (countEl) countEl.textContent = capturedGLBs.length;
+    if (countPill) {
+      countPill.textContent = `${capturedGLBs.length} CAPTURADO${capturedGLBs.length === 1 ? "" : "S"}`;
+    }
     if (nameEl && lastCaptured) {
-      nameEl.textContent = `Ativo: ${lastCaptured.filename}`;
+      nameEl.textContent = lastCaptured.filename;
     }
     if (dlBtn && lastCaptured) {
       dlBtn.classList.remove("disabled");
       dlBtn.disabled = false;
-      dlBtn.innerHTML = `⬇ Baixar Este Modelo (${lastCaptured.sizeKB} KB)`;
+      if (dlText) {
+        dlText.textContent = `BAIXAR MODELO GLB (${lastCaptured.sizeKB} KB)`;
+      }
     }
   }
 

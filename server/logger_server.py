@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import urllib.request
+import urllib.parse
 from datetime import datetime
 
 try:
@@ -34,11 +35,38 @@ class LogHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path.startswith("/files/"):
+            fname = urllib.parse.unquote(parsed.path[7:])
+            fpath = os.path.join(DOWNLOADS_DIR, fname)
+            if os.path.exists(fpath) and os.path.isfile(fpath):
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header("Content-Type", "application/octet-stream")
+                self.send_header("Content-Disposition", f'attachment; filename="{fname}"')
+                self.send_header("Content-Length", str(os.path.getsize(fpath)))
+                self.end_headers()
+                with open(fpath, "rb") as f:
+                    self.wfile.write(f.read())
+                return
+            else:
+                self.send_response(404)
+                self._send_cors_headers()
+                self.end_headers()
+                self.wfile.write(b'{"error": "File not found"}')
+                return
+
         self.send_response(200)
         self._send_cors_headers()
         self.send_header("Content-Type", "application/json")
         self.end_headers()
-        self.wfile.write(json.dumps({"status": "running", "port": PORT, "features": ["4k", "games", "stl", "repair", "split"]}).encode("utf-8"))
+        self.wfile.write(json.dumps({
+            "status": "running",
+            "online": True,
+            "port": PORT,
+            "engine": "Meshy 3D Studio PRO",
+            "features": ["4k", "games", "stl", "repair", "split", "inspect"]
+        }).encode("utf-8"))
 
     def do_POST(self):
         content_length = int(self.headers.get("Content-Length", 0))
@@ -112,12 +140,27 @@ class LogHandler(http.server.BaseHTTPRequestHandler):
             else:
                 res_data = {"status": "error", "message": "Arquivo nao encontrado para divisao."}
 
+        # Rota: Inspecionar Geometria do Modelo
+        elif self.path == "/inspect":
+            if file_path and meshy_processor:
+                res_data = meshy_processor.inspect_glb(file_path)
+            else:
+                res_data = {"status": "error", "message": "Arquivo nao encontrado para inspecao."}
+
         # Rota: Converter para STL Simples
         elif self.path == "/convert_stl":
             if file_path and meshy_processor:
                 res_data = meshy_processor.convert_to_stl(file_path)
             else:
                 res_data = {"status": "error", "message": "Arquivo nao encontrado para conversao."}
+
+        # Anexa filename e URL de download se houver arquivo gerado
+        if isinstance(res_data, dict) and "output" in res_data and res_data.get("output"):
+            out_file = res_data["output"]
+            if isinstance(out_file, str) and os.path.isfile(out_file):
+                base_fname = os.path.basename(out_file)
+                res_data["filename"] = base_fname
+                res_data["download_url"] = f"http://localhost:{PORT}/files/{urllib.parse.quote(base_fname)}"
 
         self.send_response(200)
         self._send_cors_headers()

@@ -47,6 +47,41 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true; // mantém a porta assíncrona aberta
   }
 
+  if (request.action === "check_engine") {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500);
+    fetch("http://localhost:9999/", { signal: controller.signal })
+      .then(res => res.json())
+      .then(data => {
+        clearTimeout(timeoutId);
+        sendResponse({ online: true, data });
+      })
+      .catch(err => {
+        clearTimeout(timeoutId);
+        sendResponse({ online: false, error: err.message });
+      });
+    return true;
+  }
+
+  if (request.action === "download_processed") {
+    const filename = request.filename;
+    const url = request.url || `http://localhost:9999/files/${encodeURIComponent(filename)}`;
+    sendLog("INFO", `📥 Baixando arquivo pós-processado: ${filename}`, { url });
+    chrome.downloads.download({
+      url: url,
+      filename: filename,
+      saveAs: false,
+      conflictAction: "uniquify"
+    }, (downloadId) => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ success: false, error: chrome.runtime.lastError.message });
+      } else {
+        sendResponse({ success: true, downloadId });
+      }
+    });
+    return true;
+  }
+
   if (request.action === "log") {
     sendLog(request.level || "INFO", request.message, request.data);
     sendResponse({ received: true });

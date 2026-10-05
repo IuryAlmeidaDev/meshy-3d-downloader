@@ -75,7 +75,7 @@
     // Notifica content.js
     window.postMessage({
       type: "MESHY_GLB_READY",
-      payload: { filename, sizeKB: entry.sizeKB, src }
+      payload: { id: entry.time, filename, sizeKB: entry.sizeKB, src, timeStr: new Date(entry.time).toLocaleTimeString() }
     }, "*");
 
     // Só faz download automático se o usuário tiver ativado explicitamente
@@ -84,14 +84,29 @@
     }
   }
 
-  // Escuta comando do botão da interface para baixar sob demanda
+  // Escuta comando do botão da interface para baixar sob demanda ou alternar asset
   window.addEventListener("message", (event) => {
     if (!event.data) return;
     if (event.data.type === "MESHY_TRIGGER_DOWNLOAD") {
-      const target = window.__meshyLastGLB;
+      const reqFilename = event.data.payload && event.data.payload.filename;
+      let target = window.__meshyLastGLB;
+      if (reqFilename && window.__meshyGLBs && window.__meshyGLBs.length) {
+        const found = window.__meshyGLBs.find(g => g.filename === reqFilename);
+        if (found) target = found;
+      }
       if (target && target.blob) {
         logToExtension("INFO", "📥 Disparando download manual solicitado pelo usuário: " + target.filename);
         downloadGLB(target.blob, target.filename);
+      }
+    }
+    if (event.data.type === "MESHY_SET_ACTIVE_ASSET") {
+      const reqFilename = event.data.payload && event.data.payload.filename;
+      if (reqFilename && window.__meshyGLBs) {
+        const found = window.__meshyGLBs.find(g => g.filename === reqFilename);
+        if (found) {
+          window.__meshyLastGLB = found;
+          logToExtension("INFO", "🎯 Modelo ativo alterado para: " + reqFilename);
+        }
       }
     }
     if (event.data.type === "MESHY_SET_AUTODOWNLOAD") {

@@ -1,8 +1,14 @@
-// content.js - Interface flutuante e ponte de comunicação (Bolder Studio Edition)
+// content.js - Interface flutuante Studio PRO (Bolder + Impeccable Polish Edition)
 (function initMeshyContentScript() {
   const capturedGLBs = [];
   let lastCaptured = null;
   let isMinimized = false;
+  let isProcessing = false;
+  let engineOnline = false;
+  let selectedLodTarget = 5000; // Padrão otimizado para Roblox Studio
+  let showHistoryDrawer = false;
+  let showEngineDrawer = false;
+
   const isDiscover = window.location.href.includes("/discover");
 
   function sendLog(level, message, data = null) {
@@ -22,8 +28,12 @@
 
     if (event.data.type === "MESHY_GLB_READY") {
       const glb = event.data.payload;
-      capturedGLBs.push(glb);
+      const exists = capturedGLBs.find(g => g.filename === glb.filename);
+      if (!exists) {
+        capturedGLBs.push(glb);
+      }
       lastCaptured = glb;
+      flashPulseDot();
       updateFloatingPanel();
       setLog(`Modelo decodificado (${glb.sizeKB} KB): ${glb.filename}`);
     }
@@ -36,25 +46,119 @@
     games: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>`,
     stl: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>`,
     split: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>`,
-    scan: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
-    minimize: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
-    expand: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`
+    minimize: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+    expand: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`,
+    server: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>`,
+    history: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+    check: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
+    copy: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
+    close: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
   };
+
+  function flashPulseDot() {
+    const dot = document.querySelector(".mdp-pulse-dot");
+    if (!dot) return;
+    dot.classList.add("is-active");
+    setTimeout(() => {
+      if (!isProcessing) dot.classList.remove("is-active");
+    }, 2500);
+  }
+
+  function checkEngineLiveness(showLogFeedback = false) {
+    try {
+      chrome.runtime.sendMessage({ action: "check_engine" }, (res) => {
+        engineOnline = !!(res && res.online);
+        renderEngineStatus();
+        if (showLogFeedback) {
+          setLog(engineOnline ? "Motor Python 3D conectado e operacional!" : "Motor Python offline. Inicie o servidor local.");
+        }
+      });
+    } catch (_) {
+      engineOnline = false;
+      renderEngineStatus();
+    }
+  }
+
+  function renderEngineStatus() {
+    const statusBtn = document.getElementById("mdp-engine-status");
+    const toolsGrid = document.querySelector(".mdp-tools-grid");
+    if (!statusBtn) return;
+
+    if (engineOnline) {
+      statusBtn.className = "mdp-engine-pill online";
+      statusBtn.innerHTML = `<span class="mdp-engine-dot"></span><span>ENGINE: ONLINE</span>`;
+      statusBtn.title = "Motor local Python ativo na porta 9999. Clique para detalhes.";
+      if (toolsGrid) toolsGrid.classList.remove("engine-offline");
+    } else {
+      statusBtn.className = "mdp-engine-pill offline";
+      statusBtn.innerHTML = `<span class="mdp-engine-dot"></span><span>ENGINE: OFFLINE</span>`;
+      statusBtn.title = "Servidor local desconectado. Clique para ver instruções de inicialização.";
+      if (toolsGrid) toolsGrid.classList.add("engine-offline");
+    }
+  }
 
   function createFloatingUI() {
     if (document.getElementById("meshy-downloader-panel")) return;
 
     const panel = document.createElement("div");
     panel.id = "meshy-downloader-panel";
+
+    // Recupera posição salva no localStorage
+    try {
+      const savedPos = JSON.parse(localStorage.getItem("mdp_hud_position"));
+      if (savedPos && savedPos.left && savedPos.top) {
+        panel.style.left = `${savedPos.left}px`;
+        panel.style.top = `${savedPos.top}px`;
+        panel.style.right = "auto";
+        panel.style.bottom = "auto";
+      }
+    } catch (_) {}
+
     panel.innerHTML = `
-      <!-- Header HUD -->
+      <!-- Header HUD com Suporte a Drag -->
       <div id="mdp-header">
         <div class="mdp-header-left">
-          <span class="mdp-pulse-dot"></span>
-          <span class="mdp-title">MESHY STUDIO</span>
+          <span class="mdp-pulse-dot" title="Status de Interceptação"></span>
+          <span class="mdp-title">MESHY STUDIO PRO</span>
           <span class="mdp-badge">${isDiscover ? "DISCOVER" : "WORKSPACE"}</span>
         </div>
-        <button id="mdp-btn-toggle" class="mdp-icon-btn" title="Minimizar / Expandir">${icons.minimize}</button>
+        <div class="mdp-header-right">
+          <button id="mdp-engine-status" class="mdp-engine-pill offline" title="Verificar status do servidor">
+            <span class="mdp-engine-dot"></span><span>ENGINE: ...</span>
+          </button>
+          <button id="mdp-btn-toggle" class="mdp-icon-btn" title="Minimizar / Expandir (Esc)">${icons.minimize}</button>
+        </div>
+      </div>
+
+      <!-- Gaveta de Instruções do Motor Local (P0 Helper) -->
+      <div id="mdp-engine-drawer" class="mdp-drawer hidden">
+        <div class="mdp-drawer-header">
+          <span>MOTOR PYTHON LOCAL (PORTA 9999)</span>
+          <button id="mdp-btn-close-engine-drawer" class="mdp-icon-btn">${icons.close}</button>
+        </div>
+        <p class="mdp-drawer-desc">
+          O processamento 3D roda no seu hardware com máxima velocidade e privacidade.
+        </p>
+        <div class="mdp-code-box">
+          <code>python meshy-server\\logger_server.py</code>
+          <button id="mdp-btn-copy-command" class="mdp-copy-btn" title="Copiar comando">
+            ${icons.copy} <span>Copiar</span>
+          </button>
+        </div>
+        <div class="mdp-drawer-actions">
+          <button id="mdp-btn-test-connection" class="mdp-secondary-btn">Testar Conexão Agora</button>
+        </div>
+      </div>
+
+      <!-- Gaveta de Histórico de Modelos Capturados (P2 Asset History) -->
+      <div id="mdp-history-drawer" class="mdp-drawer hidden">
+        <div class="mdp-drawer-header">
+          <span>HISTÓRICO DE ASSETS CAPTURADOS</span>
+          <button id="mdp-btn-close-history-drawer" class="mdp-icon-btn">${icons.close}</button>
+        </div>
+        <div id="mdp-history-list" class="mdp-history-list">
+          <div class="mdp-empty-history">Nenhum modelo capturado ainda. Navegue ou gere no Meshy.</div>
+        </div>
       </div>
 
       <!-- Corpo Principal -->
@@ -63,15 +167,17 @@
         <div class="mdp-telemetry-box">
           <div class="mdp-telemetry-row">
             <span class="mdp-telemetry-label">ASSET ATIVO</span>
-            <span id="mdp-count-pill" class="mdp-pill">0 CAPTURADOS</span>
+            <button id="mdp-count-pill" class="mdp-pill" title="Clique para abrir o histórico de modelos">
+              ${icons.history} <span>0 CAPTURADOS</span>
+            </button>
           </div>
           <div id="mdp-active-name" class="mdp-asset-name">
             ${isDiscover ? "Selecione um modelo no feed público" : "Abra ou gere um modelo para decodificar"}
           </div>
         </div>
 
-        <!-- Ação Âncora Principal (Download) -->
-        <button id="mdp-btn-manual-download" class="mdp-main-action disabled" disabled>
+        <!-- Ação Âncora Principal (Download Manual) -->
+        <button id="mdp-btn-manual-download" class="mdp-main-action disabled" disabled title="Atalho: Alt + D">
           <span class="mdp-btn-icon">${icons.download}</span>
           <span id="mdp-main-action-text">AGUARDANDO MODELO NA TELA</span>
         </button>
@@ -79,31 +185,64 @@
         <!-- Toggle de Automação -->
         <label class="mdp-switch-row">
           <input type="checkbox" id="mdp-auto-dl-toggle" class="mdp-checkbox">
-          <span class="mdp-switch-text">Auto-download ao navegar</span>
+          <span class="mdp-switch-text">Auto-download ao navegar no feed</span>
         </label>
 
-        <!-- Divisor Tático -->
+        <!-- Divisor Tático de Ferramentas Studio -->
         <div class="mdp-divider">
           <span>PROCESSAMENTO LOCAL</span>
         </div>
 
+        <!-- Presets de Decimação Paramétrica (P3) -->
+        <div class="mdp-lod-bar">
+          <span class="mdp-lod-title">ALVO LOD:</span>
+          <div class="mdp-lod-chips">
+            <button class="mdp-lod-chip active" data-faces="5000" title="Ideal para Roblox Studio">Roblox 5k</button>
+            <button class="mdp-lod-chip" data-faces="20000" title="Equilíbrio para Unity e Godot">Unity 20k</button>
+            <button class="mdp-lod-chip" data-faces="50000" title="Alta fidelidade geométrica">Hi-Fi 50k</button>
+          </div>
+        </div>
+
         <!-- Grid de Ferramentas Studio -->
         <div class="mdp-tools-grid">
-          <button id="mdp-btn-upscale" class="mdp-tool-btn" title="Super-resolução Lanczos para 4096x4096px">
+          <button id="mdp-btn-upscale" class="mdp-tool-btn" title="Super-resolução Lanczos para 4096x4096px (Alt+1)">
             <span class="mdp-tool-icon">${icons.upscale}</span>
             <span class="mdp-tool-label">Upscale 4K</span>
           </button>
-          <button id="mdp-btn-games" class="mdp-tool-btn" title="Otimização Quadric Decimation para ~25k faces (Roblox/Unity)">
+          <button id="mdp-btn-games" class="mdp-tool-btn" title="Quadric Decimation para o alvo selecionado (Alt+2)">
             <span class="mdp-tool-icon">${icons.games}</span>
             <span class="mdp-tool-label">Low-Poly LOD</span>
           </button>
-          <button id="mdp-btn-repair" class="mdp-tool-btn" title="Reparo de malha estanque (Watertight STL)">
+          <button id="mdp-btn-repair" class="mdp-tool-btn" title="Reparo de malha estanque Watertight STL (Alt+3)">
             <span class="mdp-tool-icon">${icons.stl}</span>
             <span class="mdp-tool-label">STL 3D Print</span>
           </button>
-          <button id="mdp-btn-split" class="mdp-tool-btn" title="Separação de ilhas geométricas isoladas">
+          <button id="mdp-btn-split" class="mdp-tool-btn" title="Separação de ilhas geométricas desconectadas (Alt+4)">
             <span class="mdp-tool-icon">${icons.split}</span>
             <span class="mdp-tool-label">Split Mesh</span>
+          </button>
+        </div>
+
+        <!-- Barra de Progresso e Estado Assíncrono (P1) -->
+        <div id="mdp-progress-box" class="mdp-progress-box hidden">
+          <div class="mdp-progress-header">
+            <span id="mdp-progress-label">Processando...</span>
+            <span id="mdp-progress-percent">0%</span>
+          </div>
+          <div class="mdp-progress-track">
+            <div id="mdp-progress-bar" class="mdp-progress-bar"></div>
+          </div>
+        </div>
+
+        <!-- Card de Entrega do Resultado (P1 Output Delivery) -->
+        <div id="mdp-result-card" class="mdp-result-card hidden">
+          <div class="mdp-result-header">
+            <span class="mdp-result-badge">${icons.check} CONCLUÍDO</span>
+            <button id="mdp-btn-close-result" class="mdp-icon-btn">${icons.close}</button>
+          </div>
+          <div id="mdp-result-details" class="mdp-result-details">Arquivo gerado com sucesso.</div>
+          <button id="mdp-btn-download-result" class="mdp-result-download-btn">
+            ${icons.download} <span>Baixar Arquivo Gerado</span>
           </button>
         </div>
 
@@ -121,43 +260,60 @@
         position: fixed;
         bottom: 22px;
         right: 22px;
-        width: 310px;
-        background: rgba(13, 14, 18, 0.94);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
+        width: 320px;
+        background: rgba(13, 14, 18, 0.96);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
         border: 1px solid rgba(255, 255, 255, 0.12);
-        box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(0, 0, 0, 0.5);
+        box-shadow: 0 24px 48px -8px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(0, 0, 0, 0.6);
         border-radius: 14px;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
         color: #f4f4f5;
         z-index: 999999;
         overflow: hidden;
-        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, box-shadow 0.2s ease;
       }
-      #meshy-downloader-panel.minimized #mdp-body {
-        display: none;
+      #meshy-downloader-panel.minimized {
+        width: 250px;
+      }
+      #meshy-downloader-panel.minimized #mdp-body,
+      #meshy-downloader-panel.minimized #mdp-engine-drawer,
+      #meshy-downloader-panel.minimized #mdp-history-drawer {
+        display: none !important;
       }
       #mdp-header {
-        background: rgba(22, 23, 29, 0.9);
-        padding: 11px 14px;
+        background: rgba(22, 23, 29, 0.95);
+        padding: 10px 14px;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         user-select: none;
+        cursor: grab;
+      }
+      #mdp-header:active {
+        cursor: grabbing;
       }
       .mdp-header-left {
         display: flex;
         align-items: center;
         gap: 8px;
       }
+      .mdp-header-right {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
       .mdp-pulse-dot {
         width: 7px;
         height: 7px;
         border-radius: 50%;
         background: #a3e635;
-        box-shadow: 0 0 10px #a3e635;
-        animation: mdp-pulse 2s infinite ease-in-out;
+        box-shadow: 0 0 0 1.5px rgba(163, 230, 53, 0.4);
+        display: inline-block;
+      }
+      .mdp-pulse-dot.is-active {
+        animation: mdp-pulse 1.2s infinite ease-in-out;
       }
       @keyframes mdp-pulse {
         0%, 100% { opacity: 1; transform: scale(1); }
@@ -167,10 +323,10 @@
         font-size: 11px;
         font-weight: 800;
         letter-spacing: 0.08em;
-        color: #fff;
+        color: #ffffff;
       }
       .mdp-badge {
-        font-size: 9px;
+        font-size: 11px;
         font-weight: 700;
         letter-spacing: 0.05em;
         background: rgba(163, 230, 53, 0.15);
@@ -179,10 +335,40 @@
         padding: 1px 6px;
         border-radius: 4px;
       }
+      .mdp-engine-pill {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        padding: 2px 7px;
+        border-radius: 12px;
+        border: 1px solid transparent;
+        background: rgba(255, 255, 255, 0.05);
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s;
+      }
+      .mdp-engine-pill.online {
+        color: #bef264;
+        background: rgba(163, 230, 53, 0.12);
+        border-color: rgba(163, 230, 53, 0.25);
+      }
+      .mdp-engine-pill.offline {
+        color: #fcd34d;
+        background: rgba(245, 158, 11, 0.15);
+        border-color: rgba(245, 158, 11, 0.35);
+      }
+      .mdp-engine-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+      }
       .mdp-icon-btn {
         background: transparent;
         border: none;
-        color: #71717a;
+        color: #a1a1aa;
         cursor: pointer;
         padding: 4px;
         display: flex;
@@ -193,14 +379,152 @@
       }
       .mdp-icon-btn:hover {
         color: #fff;
+        background: rgba(255, 255, 255, 0.1);
+      }
+      .mdp-drawer {
+        background: rgba(18, 19, 24, 0.98);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 12px 14px;
+        animation: mdp-slide-down 0.18s ease-out;
+      }
+      .mdp-drawer.hidden {
+        display: none !important;
+      }
+      @keyframes mdp-slide-down {
+        from { opacity: 0; transform: translateY(-8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .mdp-drawer-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        color: #d4d4d8;
+        margin-bottom: 8px;
+      }
+      .mdp-drawer-desc {
+        font-size: 11px;
+        color: #a1a1aa;
+        line-height: 1.4;
+        margin: 0 0 10px 0;
+      }
+      .mdp-code-box {
+        background: rgba(0, 0, 0, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 6px;
+        padding: 6px 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        margin-bottom: 10px;
+      }
+      .mdp-code-box code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        color: #bef264;
+        user-select: all;
+      }
+      .mdp-copy-btn {
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        color: #f4f4f5;
+        border-radius: 4px;
+        padding: 3px 7px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .mdp-copy-btn:hover {
+        background: rgba(255, 255, 255, 0.18);
+      }
+      .mdp-secondary-btn {
+        width: 100%;
         background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: #f4f4f5;
+        border-radius: 6px;
+        padding: 7px;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      .mdp-secondary-btn:hover {
+        background: rgba(255, 255, 255, 0.15);
+      }
+      .mdp-history-list {
+        max-height: 180px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .mdp-history-item {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 6px;
+        padding: 7px 9px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+      }
+      .mdp-history-item.active {
+        border-color: rgba(163, 230, 53, 0.4);
+        background: rgba(163, 230, 53, 0.06);
+      }
+      .mdp-history-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .mdp-history-name {
+        font-size: 11px;
+        font-weight: 600;
+        color: #f4f4f5;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .mdp-history-meta {
+        font-size: 11px;
+        color: #a1a1aa;
+      }
+      .mdp-history-actions {
+        display: flex;
+        gap: 4px;
+      }
+      .mdp-sm-btn {
+        background: rgba(255, 255, 255, 0.08);
+        border: none;
+        color: #e4e4e7;
+        font-size: 11px;
+        font-weight: 600;
+        border-radius: 4px;
+        padding: 3px 6px;
+        cursor: pointer;
+      }
+      .mdp-sm-btn:hover {
+        background: #a3e635;
+        color: #09090b;
+      }
+      .mdp-empty-history {
+        font-size: 11px;
+        color: #71717a;
+        text-align: center;
+        padding: 10px 0;
       }
       #mdp-body {
-        padding: 14px;
+        padding: 12px 14px 14px 14px;
       }
       .mdp-telemetry-box {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(255, 255, 255, 0.035);
+        border: 1px solid rgba(255, 255, 255, 0.07);
         border-radius: 8px;
         padding: 8px 10px;
         margin-bottom: 10px;
@@ -212,21 +536,32 @@
         margin-bottom: 4px;
       }
       .mdp-telemetry-label {
-        font-size: 9px;
+        font-size: 11px;
         font-weight: 700;
         letter-spacing: 0.06em;
-        color: #71717a;
+        color: #a1a1aa;
       }
       .mdp-pill {
-        font-size: 9px;
+        background: transparent;
+        border: 1px solid rgba(163, 230, 53, 0.3);
+        border-radius: 12px;
+        padding: 2px 7px;
+        font-size: 11px;
         font-weight: 700;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         color: #a3e635;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .mdp-pill:hover {
+        background: rgba(163, 230, 53, 0.12);
       }
       .mdp-asset-name {
-        font-size: 11px;
+        font-size: 12px;
         font-weight: 500;
-        color: #d4d4d8;
+        color: #e4e4e7;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -238,7 +573,7 @@
         border: none;
         border-radius: 8px;
         padding: 11px 14px;
-        font-size: 11px;
+        font-size: 12px;
         font-weight: 800;
         letter-spacing: 0.04em;
         display: flex;
@@ -274,11 +609,11 @@
       .mdp-checkbox {
         accent-color: #a3e635;
         cursor: pointer;
-        width: 13px;
-        height: 13px;
+        width: 14px;
+        height: 14px;
       }
       .mdp-switch-text {
-        font-size: 10px;
+        font-size: 11px;
         color: #a1a1aa;
         font-weight: 500;
       }
@@ -286,44 +621,88 @@
         display: flex;
         align-items: center;
         margin: 12px 0 8px 0;
-        font-size: 9px;
+        font-size: 11px;
         font-weight: 800;
         letter-spacing: 0.08em;
-        color: #52525b;
+        color: #a1a1aa;
       }
       .mdp-divider::after {
         content: "";
         flex: 1;
         height: 1px;
-        background: rgba(255, 255, 255, 0.06);
+        background: rgba(255, 255, 255, 0.1);
         margin-left: 8px;
+      }
+      .mdp-lod-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 7px;
+      }
+      .mdp-lod-title {
+        font-size: 11px;
+        font-weight: 700;
+        color: #a1a1aa;
+        letter-spacing: 0.04em;
+      }
+      .mdp-lod-chips {
+        display: flex;
+        gap: 4px;
+      }
+      .mdp-lod-chip {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #a1a1aa;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 6px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .mdp-lod-chip:hover {
+        color: #f4f4f5;
+        border-color: rgba(255, 255, 255, 0.25);
+      }
+      .mdp-lod-chip.active {
+        background: rgba(163, 230, 53, 0.15);
+        border-color: #a3e635;
+        color: #bef264;
       }
       .mdp-tools-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 6px;
       }
+      .mdp-tools-grid.engine-offline .mdp-tool-btn {
+        opacity: 0.55;
+        cursor: pointer;
+      }
       .mdp-tool-btn {
-        background: rgba(255, 255, 255, 0.035);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.09);
         border-radius: 7px;
         padding: 8px 10px;
         display: flex;
         align-items: center;
         gap: 7px;
-        color: #e4e4e7;
-        font-size: 11px;
+        color: #f4f4f5;
+        font-size: 12px;
         font-weight: 600;
         cursor: pointer;
         transition: background 0.15s, border-color 0.15s, color 0.15s;
         text-align: left;
       }
-      .mdp-tool-btn:hover {
-        background: rgba(255, 255, 255, 0.08);
-        border-color: rgba(255, 255, 255, 0.2);
-        color: #fff;
+      .mdp-tool-btn:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.09);
+        border-color: rgba(255, 255, 255, 0.22);
+        color: #ffffff;
       }
-      .mdp-tool-btn:active {
+      .mdp-tool-btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      .mdp-tool-btn:active:not(:disabled) {
         transform: scale(0.98);
       }
       .mdp-tool-icon {
@@ -331,24 +710,108 @@
         display: flex;
         align-items: center;
       }
-      .mdp-tool-btn:hover .mdp-tool-icon {
+      .mdp-tool-btn:hover:not(:disabled) .mdp-tool-icon {
         color: #a3e635;
       }
       .mdp-tool-label {
-        font-size: 10px;
+        font-size: 12px;
         white-space: nowrap;
+      }
+      .mdp-progress-box {
+        margin-top: 10px;
+        background: rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(163, 230, 53, 0.3);
+        border-radius: 7px;
+        padding: 8px 10px;
+      }
+      .mdp-progress-box.hidden {
+        display: none !important;
+      }
+      .mdp-progress-header {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        font-weight: 600;
+        color: #d4d4d8;
+        margin-bottom: 5px;
+      }
+      .mdp-progress-track {
+        width: 100%;
+        height: 6px;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .mdp-progress-bar {
+        height: 100%;
+        width: 100%;
+        transform-origin: left;
+        transform: scaleX(0);
+        background: linear-gradient(90deg, #a3e635, #38bdf8);
+        border-radius: 3px;
+        transition: transform 0.3s ease;
+      }
+      .mdp-result-card {
+        margin-top: 10px;
+        background: rgba(163, 230, 53, 0.08);
+        border: 1px solid rgba(163, 230, 53, 0.35);
+        border-radius: 8px;
+        padding: 9px 11px;
+      }
+      .mdp-result-card.hidden {
+        display: none !important;
+      }
+      .mdp-result-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 5px;
+      }
+      .mdp-result-badge {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        color: #bef264;
+      }
+      .mdp-result-details {
+        font-size: 11px;
+        color: #e4e4e7;
+        margin-bottom: 8px;
+        word-break: break-all;
+      }
+      .mdp-result-download-btn {
+        width: 100%;
+        background: #a3e635;
+        border: none;
+        color: #09090b;
+        border-radius: 6px;
+        padding: 8px;
+        font-size: 11px;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      .mdp-result-download-btn:hover {
+        background: #bef264;
       }
       .mdp-terminal {
         margin-top: 10px;
-        background: rgba(0, 0, 0, 0.5);
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        background: rgba(0, 0, 0, 0.55);
+        border: 1px solid rgba(255, 255, 255, 0.06);
         border-radius: 6px;
         padding: 6px 9px;
         display: flex;
         align-items: center;
         gap: 6px;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 10px;
+        font-size: 11px;
       }
       .mdp-terminal-prompt {
         color: #a3e635;
@@ -365,41 +828,268 @@
     document.head.appendChild(style);
     document.body.appendChild(panel);
 
-    // Toggle Minimizar / Expandir
+    // ─── 1. Suporte a Drag & Drop do Painel HUD ─────────────────────────────
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let initialLeft = 0;
+    let initialTop = 0;
+
+    const header = document.getElementById("mdp-header");
+    header.addEventListener("mousedown", (e) => {
+      if (e.target.closest("button")) return;
+
+      isDragging = true;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+
+      const rect = panel.getBoundingClientRect();
+      initialLeft = rect.left;
+      initialTop = rect.top;
+
+      panel.style.left = `${initialLeft}px`;
+      panel.style.top = `${initialTop}px`;
+      panel.style.right = "auto";
+      panel.style.bottom = "auto";
+
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+      e.preventDefault();
+    });
+
+    function onMouseMove(e) {
+      if (!isDragging) return;
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+
+      let newLeft = initialLeft + dx;
+      let newTop = initialTop + dy;
+
+      const maxLeft = window.innerWidth - panel.offsetWidth - 10;
+      const maxTop = window.innerHeight - panel.offsetHeight - 10;
+      newLeft = Math.max(10, Math.min(newLeft, maxLeft));
+      newTop = Math.max(10, Math.min(newTop, maxTop));
+
+      panel.style.left = `${newLeft}px`;
+      panel.style.top = `${newTop}px`;
+    }
+
+    function onMouseUp() {
+      if (!isDragging) return;
+      isDragging = false;
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+
+      try {
+        const rect = panel.getBoundingClientRect();
+        localStorage.setItem("mdp_hud_position", JSON.stringify({ left: Math.round(rect.left), top: Math.round(rect.top) }));
+      } catch (_) {}
+    }
+
+    // ─── 2. Toggle Minimizar / Expandir & Atalho Esc ─────────────────────────
     const toggleBtn = document.getElementById("mdp-btn-toggle");
-    toggleBtn.addEventListener("click", () => {
+    function toggleMinimize() {
       isMinimized = !isMinimized;
       panel.classList.toggle("minimized", isMinimized);
       toggleBtn.innerHTML = isMinimized ? icons.expand : icons.minimize;
       toggleBtn.title = isMinimized ? "Expandir" : "Minimizar";
+    }
+    toggleBtn.addEventListener("click", toggleMinimize);
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !e.target.matches("input, textarea")) {
+        toggleMinimize();
+      }
+      if (e.altKey && (e.key === "d" || e.key === "D")) {
+        e.preventDefault();
+        manualDownloadActive();
+      }
+      if (e.altKey && e.key === "1") triggerUpscale();
+      if (e.altKey && e.key === "2") triggerLowPoly();
+      if (e.altKey && e.key === "3") triggerRepair();
+      if (e.altKey && e.key === "4") triggerSplit();
     });
 
-    // Ação Principal: Download Manual sob demanda
-    const manualDlBtn = document.getElementById("mdp-btn-manual-download");
-    manualDlBtn.addEventListener("click", () => {
+    // ─── 3. Gavetas de Motor e Histórico ─────────────────────────────────────
+    const engineStatusBtn = document.getElementById("mdp-engine-status");
+    const engineDrawer = document.getElementById("mdp-engine-drawer");
+    const closeEngineDrawerBtn = document.getElementById("mdp-btn-close-engine-drawer");
+
+    function toggleEngineDrawer(forceOpen = null) {
+      showEngineDrawer = forceOpen !== null ? forceOpen : !showEngineDrawer;
+      engineDrawer.classList.toggle("hidden", !showEngineDrawer);
+      if (showEngineDrawer) {
+        historyDrawer.classList.add("hidden");
+        showHistoryDrawer = false;
+      }
+    }
+    engineStatusBtn.addEventListener("click", () => toggleEngineDrawer());
+    closeEngineDrawerBtn.addEventListener("click", () => toggleEngineDrawer(false));
+
+    document.getElementById("mdp-btn-copy-command").addEventListener("click", () => {
+      navigator.clipboard.writeText("python meshy-server\\logger_server.py");
+      setLog("Comando copiado para a área de transferência!");
+    });
+
+    document.getElementById("mdp-btn-test-connection").addEventListener("click", () => {
+      setLog("Verificando conexão com o motor...");
+      checkEngineLiveness(true);
+    });
+
+    const countPill = document.getElementById("mdp-count-pill");
+    const historyDrawer = document.getElementById("mdp-history-drawer");
+    const closeHistoryDrawerBtn = document.getElementById("mdp-btn-close-history-drawer");
+
+    function toggleHistoryDrawer(forceOpen = null) {
+      showHistoryDrawer = forceOpen !== null ? forceOpen : !showHistoryDrawer;
+      historyDrawer.classList.toggle("hidden", !showHistoryDrawer);
+      if (showHistoryDrawer) {
+        engineDrawer.classList.add("hidden");
+        showEngineDrawer = false;
+        renderHistoryList();
+      }
+    }
+    countPill.addEventListener("click", () => toggleHistoryDrawer());
+    closeHistoryDrawerBtn.addEventListener("click", () => toggleHistoryDrawer(false));
+
+    function renderHistoryList() {
+      const container = document.getElementById("mdp-history-list");
+      if (!capturedGLBs.length) {
+        container.innerHTML = `<div class="mdp-empty-history">Nenhum modelo capturado ainda.</div>`;
+        return;
+      }
+      container.innerHTML = capturedGLBs.slice().reverse().map(item => {
+        const isActive = lastCaptured && lastCaptured.filename === item.filename;
+        return `
+          <div class="mdp-history-item ${isActive ? "active" : ""}">
+            <div class="mdp-history-info">
+              <div class="mdp-history-name" title="${item.filename}">${item.filename}</div>
+              <div class="mdp-history-meta">${item.sizeKB} KB ${isActive ? "• (ATIVO)" : ""}</div>
+            </div>
+            <div class="mdp-history-actions">
+              ${!isActive ? `<button class="mdp-sm-btn btn-make-active" data-fn="${item.filename}">Ativar</button>` : ""}
+              <button class="mdp-sm-btn btn-dl-item" data-fn="${item.filename}">Baixar</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      container.querySelectorAll(".btn-make-active").forEach(b => {
+        b.addEventListener("click", () => {
+          const fn = b.dataset.fn;
+          const found = capturedGLBs.find(g => g.filename === fn);
+          if (found) {
+            lastCaptured = found;
+            window.postMessage({ type: "MESHY_SET_ACTIVE_ASSET", payload: { filename: fn } }, "*");
+            updateFloatingPanel();
+            renderHistoryList();
+            setLog(`Ativo alterado para: ${fn}`);
+          }
+        });
+      });
+
+      container.querySelectorAll(".btn-dl-item").forEach(b => {
+        b.addEventListener("click", () => {
+          const fn = b.dataset.fn;
+          setLog(`Baixando: ${fn}...`);
+          window.postMessage({ type: "MESHY_TRIGGER_DOWNLOAD", payload: { filename: fn } }, "*");
+        });
+      });
+    }
+
+    // ─── 4. Ação Principal de Download ────────────────────────────────────────
+    function manualDownloadActive() {
       if (!lastCaptured) {
         setLog("Abra um modelo no visualizador 3D primeiro.");
         return;
       }
       setLog(`Iniciando download: ${lastCaptured.filename}...`);
-      window.postMessage({ type: "MESHY_TRIGGER_DOWNLOAD" }, "*");
-    });
+      window.postMessage({ type: "MESHY_TRIGGER_DOWNLOAD", payload: { filename: lastCaptured.filename } }, "*");
+    }
+    document.getElementById("mdp-btn-manual-download").addEventListener("click", manualDownloadActive);
 
-    // Checkbox de Auto-Download
+    // Toggle de Automação
     const autoDlToggle = document.getElementById("mdp-auto-dl-toggle");
     autoDlToggle.addEventListener("change", (e) => {
       const active = e.target.checked;
       window.postMessage({ type: "MESHY_SET_AUTODOWNLOAD", payload: active }, "*");
-      setLog(active ? "Auto-download ativo ao abrir modelos." : "Modo manual ativo (baixe via botão).");
+      setLog(active ? "Auto-download ativo ao navegar no feed." : "Modo manual ativo (baixe via botão).");
     });
 
-    // Helper de chamadas seguras para o servidor local
-    function callServer(endpoint, payload, startMsg) {
+    // ─── 5. Presets de LOD Paramétrico (P3) ───────────────────────────────────
+    document.querySelectorAll(".mdp-lod-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        document.querySelectorAll(".mdp-lod-chip").forEach(c => c.classList.remove("active"));
+        chip.classList.add("active");
+        selectedLodTarget = parseInt(chip.dataset.faces, 10);
+        setLog(`Alvo de decimação definido para ${selectedLodTarget.toLocaleString()} faces.`);
+      });
+    });
+
+    // ─── 6. Execução de Ferramentas com Progresso e Entrega (P0 & P1) ──────────
+    const progressBox = document.getElementById("mdp-progress-box");
+    const progressLabel = document.getElementById("mdp-progress-label");
+    const progressPercent = document.getElementById("mdp-progress-percent");
+    const progressBar = document.getElementById("mdp-progress-bar");
+    const resultCard = document.getElementById("mdp-result-card");
+    const resultDetails = document.getElementById("mdp-result-details");
+    const downloadResultBtn = document.getElementById("mdp-btn-download-result");
+    let currentResultData = null;
+
+    document.getElementById("mdp-btn-close-result").addEventListener("click", () => {
+      resultCard.classList.add("hidden");
+    });
+
+    downloadResultBtn.addEventListener("click", () => {
+      if (currentResultData && currentResultData.filename) {
+        chrome.runtime.sendMessage({
+          action: "download_processed",
+          filename: currentResultData.filename,
+          url: currentResultData.download_url
+        });
+        setLog(`Download disparado: ${currentResultData.filename}`);
+      }
+    });
+
+    function setToolsDisabled(disabled) {
+      isProcessing = disabled;
+      document.querySelectorAll(".mdp-tool-btn").forEach(btn => btn.disabled = disabled);
+      const dot = document.querySelector(".mdp-pulse-dot");
+      if (dot) dot.classList.toggle("is-active", disabled);
+    }
+
+    function runAsyncStudioTask(endpoint, payload, taskName) {
       if (!lastCaptured) {
         setLog("Selecione um modelo no visualizador primeiro.");
         return;
       }
-      setLog(startMsg);
+      if (!engineOnline) {
+        setLog("Motor Python offline. Abra as instruções no botão ENGINE.");
+        toggleEngineDrawer(true);
+        return;
+      }
+      if (isProcessing) {
+        setLog("Aguarde a conclusão da operação atual.");
+        return;
+      }
+
+      setToolsDisabled(true);
+      resultCard.classList.add("hidden");
+      progressBox.classList.remove("hidden");
+      progressLabel.textContent = taskName;
+      progressPercent.textContent = "15%";
+      progressBar.style.transform = "scaleX(0.15)";
+      setLog(`Iniciando ${taskName}...`);
+
+      let progressSim = 15;
+      const progressTimer = setInterval(() => {
+        if (progressSim < 88) {
+          progressSim += Math.floor(Math.random() * 8) + 4;
+          progressPercent.textContent = `${progressSim}%`;
+          progressBar.style.transform = `scaleX(${progressSim / 100})`;
+        }
+      }, 500);
+
       fetch(`http://localhost:9999${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -407,35 +1097,70 @@
       })
         .then(r => r.json())
         .then(res => {
-          if (res.status === "success") {
-            setLog(res.message || "Operação concluída com sucesso!");
-          } else {
-            setLog(res.message || "Aviso da operação.");
-          }
+          clearInterval(progressTimer);
+          progressPercent.textContent = "100%";
+          progressBar.style.transform = "scaleX(1)";
+
+          setTimeout(() => {
+            progressBox.classList.add("hidden");
+            setToolsDisabled(false);
+
+            if (res.status === "success") {
+              currentResultData = res;
+              setLog(res.message || "Operação concluída com sucesso!");
+              
+              // Exibe card de entrega do arquivo gerado
+              resultCard.classList.remove("hidden");
+              const sizeTxt = res.size_mb ? ` (${res.size_mb} MB)` : "";
+              resultDetails.textContent = `${res.filename || "Arquivo gerado"}${sizeTxt} salvo na pasta Downloads.`;
+
+              // Dispara download automático do resultado gerado
+              if (res.filename) {
+                chrome.runtime.sendMessage({
+                  action: "download_processed",
+                  filename: res.filename,
+                  url: res.download_url
+                });
+              }
+            } else {
+              setLog(res.message || "Aviso do processamento.");
+            }
+          }, 300);
         })
-        .catch(e => setLog("Erro no servidor local: " + e.message));
+        .catch(err => {
+          clearInterval(progressTimer);
+          progressBox.classList.add("hidden");
+          setToolsDisabled(false);
+          setLog("Erro no motor local: " + err.message);
+          checkEngineLiveness();
+        });
     }
 
-    // Ferramentas Studio (Bolder pass)
-    document.getElementById("mdp-btn-upscale").addEventListener("click", () => {
-      callServer("/upscale_4k", {}, "Processando Upscale 4K de texturas...");
-    });
+    function triggerUpscale() {
+      runAsyncStudioTask("/upscale_4k", {}, "Upscaling de Texturas para 4K (Lanczos)");
+    }
+    function triggerLowPoly() {
+      runAsyncStudioTask("/optimize_games", { target_faces: selectedLodTarget }, `Decimação Low-Poly (${selectedLodTarget.toLocaleString()} faces)`);
+    }
+    function triggerRepair() {
+      runAsyncStudioTask("/repair_print", {}, "Reparo Watertight e Geração de STL");
+    }
+    function triggerSplit() {
+      runAsyncStudioTask("/split_parts", {}, "Divisão de Ilhas Geométricas");
+    }
 
-    document.getElementById("mdp-btn-games").addEventListener("click", () => {
-      callServer("/optimize_games", { target_faces: 25000 }, "Calculando decimação Low-Poly (25k faces)...");
-    });
+    document.getElementById("mdp-btn-upscale").addEventListener("click", triggerUpscale);
+    document.getElementById("mdp-btn-games").addEventListener("click", triggerLowPoly);
+    document.getElementById("mdp-btn-repair").addEventListener("click", triggerRepair);
+    document.getElementById("mdp-btn-split").addEventListener("click", triggerSplit);
 
-    document.getElementById("mdp-btn-repair").addEventListener("click", () => {
-      callServer("/repair_print", {}, "Reparando malha e gerando STL estanque...");
-    });
-
-    document.getElementById("mdp-btn-split").addEventListener("click", () => {
-      callServer("/split_parts", {}, "Analisando ilhas de malha desconectadas...");
-    });
+    // Heartbeat periódico do motor (a cada 4 segundos)
+    checkEngineLiveness();
+    setInterval(checkEngineLiveness, 4000);
   }
 
   function updateFloatingPanel() {
-    const countPill = document.getElementById("mdp-count-pill");
+    const countPill = document.querySelector("#mdp-count-pill span");
     const nameEl = document.getElementById("mdp-active-name");
     const dlBtn = document.getElementById("mdp-btn-manual-download");
     const dlText = document.getElementById("mdp-main-action-text");
@@ -445,6 +1170,7 @@
     }
     if (nameEl && lastCaptured) {
       nameEl.textContent = lastCaptured.filename;
+      nameEl.title = lastCaptured.filename;
     }
     if (dlBtn && lastCaptured) {
       dlBtn.classList.remove("disabled");

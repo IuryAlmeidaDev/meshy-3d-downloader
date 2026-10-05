@@ -86,12 +86,12 @@
 
     if (engineOnline) {
       statusBtn.className = "mdp-engine-pill online";
-      statusBtn.innerHTML = `<span class="mdp-engine-dot"></span><span>ENGINE: ONLINE</span>`;
+      statusBtn.innerHTML = `<span class="mdp-engine-dot"></span><span>ONLINE</span>`;
       statusBtn.title = "Motor local Python ativo na porta 9999. Clique para detalhes.";
       if (toolsGrid) toolsGrid.classList.remove("engine-offline");
     } else {
       statusBtn.className = "mdp-engine-pill offline";
-      statusBtn.innerHTML = `<span class="mdp-engine-dot"></span><span>ENGINE: OFFLINE</span>`;
+      statusBtn.innerHTML = `<span class="mdp-engine-dot"></span><span>OFFLINE</span>`;
       statusBtn.title = "Servidor local desconectado. Clique para ver instruções de inicialização.";
       if (toolsGrid) toolsGrid.classList.add("engine-offline");
     }
@@ -119,14 +119,14 @@
       <div id="mdp-header">
         <div class="mdp-header-left">
           <span class="mdp-pulse-dot" title="Status de Interceptação"></span>
-          <span class="mdp-title">MESHY STUDIO PRO</span>
+          <span class="mdp-title">MESHY STUDIO</span>
           <span class="mdp-badge">${isDiscover ? "DISCOVER" : "WORKSPACE"}</span>
         </div>
         <div class="mdp-header-right">
           <button id="mdp-engine-status" class="mdp-engine-pill offline" title="Verificar status do servidor">
-            <span class="mdp-engine-dot"></span><span>ENGINE: ...</span>
+            <span class="mdp-engine-dot"></span><span>...</span>
           </button>
-          <button id="mdp-btn-toggle" class="mdp-icon-btn" title="Minimizar / Expandir (Esc)">${icons.minimize}</button>
+          <button id="mdp-btn-toggle" class="mdp-icon-btn" title="Minimizar / Expandir (Alt+M)">${icons.minimize}</button>
         </div>
       </div>
 
@@ -264,7 +264,7 @@
         position: fixed;
         bottom: 22px;
         right: 22px;
-        width: 336px;
+        width: 350px;
         background: rgba(13, 14, 18, 0.96);
         backdrop-filter: blur(24px);
         -webkit-backdrop-filter: blur(24px);
@@ -428,6 +428,8 @@
         border-radius: 4px;
         transition: color 0.15s, background 0.15s;
         flex-shrink: 0;
+        width: 22px;
+        height: 22px;
       }
       .mdp-icon-btn:hover {
         color: #fff;

@@ -256,11 +256,15 @@
 
     const style = document.createElement("style");
     style.textContent = `
+      #meshy-downloader-panel,
+      #meshy-downloader-panel * {
+        box-sizing: border-box !important;
+      }
       #meshy-downloader-panel {
         position: fixed;
         bottom: 22px;
         right: 22px;
-        width: 320px;
+        width: 336px;
         background: rgba(13, 14, 18, 0.96);
         backdrop-filter: blur(24px);
         -webkit-backdrop-filter: blur(24px);
@@ -299,22 +303,34 @@
         background: #a3e635;
       }
       #meshy-downloader-panel.minimized {
-        width: 250px;
+        width: auto !important;
+        min-width: 175px !important;
+        border-radius: 14px !important;
       }
       #meshy-downloader-panel.minimized #mdp-body,
       #meshy-downloader-panel.minimized #mdp-engine-drawer,
       #meshy-downloader-panel.minimized #mdp-history-drawer {
         display: none !important;
       }
+      #meshy-downloader-panel.minimized #mdp-header {
+        padding: 7px 12px !important;
+        border-bottom: none !important;
+      }
+      #meshy-downloader-panel.minimized .mdp-badge,
+      #meshy-downloader-panel.minimized .mdp-engine-pill {
+        display: none !important;
+      }
       #mdp-header {
         background: rgba(22, 23, 29, 0.95);
-        padding: 10px 14px;
+        padding: 9px 12px;
         display: flex;
         align-items: center;
         justify-content: space-between;
+        gap: 8px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         user-select: none;
         cursor: grab;
+        width: 100%;
       }
       #mdp-header:active {
         cursor: grabbing;
@@ -322,12 +338,14 @@
       .mdp-header-left {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 7px;
+        flex-shrink: 0;
       }
       .mdp-header-right {
         display: flex;
         align-items: center;
         gap: 6px;
+        flex-shrink: 0;
       }
       .mdp-pulse-dot {
         width: 7px;
@@ -336,6 +354,7 @@
         background: #a3e635;
         box-shadow: 0 0 0 1.5px rgba(163, 230, 53, 0.4);
         display: inline-block;
+        flex-shrink: 0;
       }
       .mdp-pulse-dot.is-active {
         animation: mdp-pulse 1.2s infinite ease-in-out;
@@ -347,18 +366,22 @@
       .mdp-title {
         font-size: 11px;
         font-weight: 800;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.06em;
         color: #ffffff;
+        white-space: nowrap !important;
+        flex-shrink: 0;
       }
       .mdp-badge {
         font-size: 11px;
         font-weight: 700;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.04em;
         background: rgba(163, 230, 53, 0.15);
         color: #bef264;
         border: 1px solid rgba(163, 230, 53, 0.3);
         padding: 1px 6px;
         border-radius: 4px;
+        white-space: nowrap !important;
+        flex-shrink: 0;
       }
       .mdp-engine-pill {
         display: flex;
@@ -366,13 +389,15 @@
         gap: 5px;
         font-size: 11px;
         font-weight: 700;
-        letter-spacing: 0.04em;
+        letter-spacing: 0.03em;
         padding: 2px 7px;
         border-radius: 12px;
         border: 1px solid transparent;
         background: rgba(255, 255, 255, 0.05);
         cursor: pointer;
         transition: background 0.15s, border-color 0.15s;
+        white-space: nowrap !important;
+        flex-shrink: 0;
       }
       .mdp-engine-pill.online {
         color: #bef264;
@@ -389,6 +414,7 @@
         height: 6px;
         border-radius: 50%;
         background: currentColor;
+        flex-shrink: 0;
       }
       .mdp-icon-btn {
         background: transparent;
@@ -401,6 +427,7 @@
         justify-content: center;
         border-radius: 4px;
         transition: color 0.15s, background 0.15s;
+        flex-shrink: 0;
       }
       .mdp-icon-btn:hover {
         color: #fff;
@@ -922,7 +949,9 @@
     toggleBtn.addEventListener("click", toggleMinimize);
 
     window.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && !e.target.matches("input, textarea")) {
+      // Atalho Alt + M para minimizar/expandir (evita conflito com o Esc da viewport 3D)
+      if (e.altKey && (e.key === "m" || e.key === "M")) {
+        e.preventDefault();
         toggleMinimize();
       }
       if (e.altKey && (e.key === "d" || e.key === "D")) {

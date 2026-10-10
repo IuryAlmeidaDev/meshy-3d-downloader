@@ -19,6 +19,27 @@
 
   logToExtension("INFO", "🔓 Meshy Decryptor Engine ativo no contexto da página!");
 
+  // Captura erros globais e console.error para diagnóstico no servidor local
+  window.addEventListener("error", (e) => {
+    logToExtension("ERROR", `[JS Error] ${e.message} em ${e.filename || "inline"}:${e.lineno}`);
+  });
+
+  window.addEventListener("unhandledrejection", (e) => {
+    const reason = e.reason ? (e.reason.message || String(e.reason)) : "Rejeição desconhecida";
+    logToExtension("ERROR", `[Unhandled Rejection] ${reason}`);
+  });
+
+  const _origConsoleError = console.error;
+  console.error = function(...args) {
+    try {
+      const msg = args.map(a => (typeof a === "object" ? (a?.message || JSON.stringify(a)) : String(a))).join(" ");
+      if (!msg.includes("Download the React DevTools")) {
+        logToExtension("ERROR", `[Console Error] ${msg.slice(0, 300)}`);
+      }
+    } catch (_) {}
+    _origConsoleError.apply(console, args);
+  };
+
   function isGLBBuffer(buf) {
     if (!buf || buf.byteLength < 4) return false;
     try {
@@ -122,7 +143,7 @@
 
     function spyWorkerMsg(e) {
       const d = e.data;
-      if (!d || !d.type) return;
+      if (!d) return;
       
       if (d.type === "process" && d.success && d.data) {
         logToExtension("INFO", `🔓 [DECRYPTED NO WORKER] Tamanho: ${d.data.byteLength} bytes`);
@@ -132,6 +153,16 @@
         } catch (ex) {
           logToExtension("WARN", "Erro ao copiar buffer do worker: " + ex.message);
         }
+      } else if (d.data && isGLBBuffer(d.data)) {
+        logToExtension("INFO", `🔓 [GLB DIRETO NO WORKER MSG] Tamanho: ${d.data.byteLength || d.data.size} bytes`);
+        try {
+          const copy = d.data.slice ? d.data.slice(0) : d.data;
+          captureGLB(new Blob([copy], { type: "model/gltf-binary" }), "worker-direct");
+        } catch (ex) {
+          logToExtension("WARN", "Erro ao copiar buffer direto: " + ex.message);
+        }
+      } else if (d.type === "process" && !d.success) {
+        logToExtension("ERROR", `❌ [WORKER FALHOU] ${d.error || JSON.stringify(d).slice(0, 200)}`);
       }
     }
 
@@ -192,18 +223,28 @@
 
   // ─── 3. HOOK: window.fetch ──────────────────────────────────────────
   const _origFetch = window.fetch;
-  window.fetch = async function(input) {
+  window.fetch = async function(input, init) {
     const url = typeof input === "string" ? input : (input && input.url) || String(input);
     const hit = looksLikeGLBUrl(url);
+    const isAnimOrRig = typeof url === "string" && (url.includes("animation") || url.includes("rig") || url.includes("motion") || url.includes("preset"));
+
+    if (isAnimOrRig) {
+      logToExtension("DEBUG", `[FETCH ANIMAÇÃO/RIG] ${url.slice(0, 150)}`);
+    }
+
     const p = _origFetch.apply(this, arguments);
-    if (!hit) return p;
 
     return p.then(async resp => {
       try {
-        const buf = await resp.clone().arrayBuffer();
-        if (isGLBBuffer(buf)) {
-          logToExtension("INFO", "🔓 GLB sem criptografia interceptado via fetch!");
-          captureGLB(new Blob([buf], { type: "model/gltf-binary" }), "fetch");
+        if (!resp.ok && (hit || isAnimOrRig)) {
+          logToExtension("WARN", `[FETCH FALHOU ${resp.status}] ${url.slice(0, 150)}`);
+        }
+        if (hit || isAnimOrRig) {
+          const buf = await resp.clone().arrayBuffer();
+          if (isGLBBuffer(buf)) {
+            logToExtension("INFO", "🔓 GLB interceptado via fetch!");
+            captureGLB(new Blob([buf], { type: "model/gltf-binary" }), "fetch");
+          }
         }
       } catch (_) {}
       return resp;
